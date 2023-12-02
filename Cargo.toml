@@ -1,0 +1,51 @@
+[package]
+name = "sui-gas-station"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/MystenLabs/sui-gas-station"
+
+[dependencies]
+#sui-config = { path = "../sui-upstream/crates/sui-config" }
+#sui-json-rpc-types = { path = "../sui-upstream/crates/sui-json-rpc-types" }
+#sui-sdk = { path = "../sui-upstream/crates/sui-sdk" }
+#sui-swarm-config = { path = "../sui-upstream/crates/sui-swarm-config" }
+#sui-types = { path = "../sui-upstream/crates/sui-types" }
+#shared-crypto = { path = "../sui-upstream/crates/shared-crypto" }
+#telemetry-subscribers = { path = "../sui-upstream/crates/telemetry-subscribers" }
+#test-cluster = { path = "../sui-upstream/crates/test-cluster" }
+#typed-store = { path = "../sui-upstream/crates/typed-store" }
+#typed-store-derive = { path = "../sui-upstream/crates/typed-store-derive" }
+
+sui-config = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-config" }
+sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-json-rpc-types" }
+sui-sdk = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-sdk" }
+sui-swarm-config = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-swarm-config" }
+sui-types = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-types" }
+shared-crypto = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "shared-crypto" }
+telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "telemetry-subscribers" }
+test-cluster = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "test-cluster" }
+typed-store = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "typed-store" }
+typed-store-derive = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "typed-store-derive" }
+
+anyhow = "1.0.75"
+async-trait = "0.1.51"
+axum = "0.6.6"
+bcs = "0.1.6"
+clap = "4.4.10"
+chrono = "0.4.19"
+eyre = "0.6.9"
+parking_lot = "0.12.1"
+rand = "0.8.5"
+reqwest = { version = "0.11.22", features = ["json"] }
+rocksdb = "0.21.0"
+serde = { version = "1.0.193", features = ["derive", "rc"] }
+serde_with = "3.4.0"
+tempfile = "3.2.0"
+tracing = "0.1.40"
+tokio = { version = "1.34.0", features = ["full"] }
+tokio-retry = "0.3.0"
+
+[dev-dependencies]
+rand = "0.8.5"
