@@ -73,15 +73,53 @@ pub struct ExecuteTxResponse {
 ### CLI
 The `sui-gas-staiton` binary currently supports 3 commands:
 1. `init`: This invokes the Production Initializer and initialize the global gas pool using real network data.
-2. `start`: This starts a gas station instance that contains the RPC server, Gas Station Core, and connection to the Storage layer.
-3. `benchmark`: This starts a stress benchmark that continuously send gas reservation request to the gas station server, and measures number of requests processed per second. Each reservation expires automatically after 1 second so the unused gas are put back to the pool.
+2. `start-storage-server`: This starts a storage server that contains the RPC server and connection to the Storage layer. There should be only one storage server instance running.
+3. `start-station-server`: This starts a gas station instance that contains the RPC server, Gas Station Core, and connection to the Storage layer.
+4. `benchmark`: This starts a stress benchmark that continuously send gas reservation request to the gas station server, and measures number of requests processed per second. Each reservation expires automatically after 1 second so the unused gas are put back to the pool.
 
+### Deployment
+Step 1:
+Make sure we have a reliable fullnode running with RPC enabled. The fullnode should be running with an environment variable override:
+```
+RPC_QUERY_MAX_RESULT_LIMIT=3000
+```
+
+Step 2:
+Start a storage server instance somewhere:
+```bash
+GAS_STATION_AUTH=<some-secret> sui-gas-station start-storage-server --db-path <gas-pool-db-path> --ip <ip> --rpc-port <port>
+```
+where "some-secret" is a secret that would be shared among the storage server, station servers and Enoki servers. They need to be kept internal such that external servers cannot make meaningful request to these servers even if they discover their RPC service.
+The "ip" and "port" are used to start a RPC server for the storage layer.
+
+Step 3:
+Put up a config file.
+First of all one can run
+```bash
+sui-gas-station generate-sample-config --config-path config.yaml
+```
+to generate a sample config file.
+Then one can edit the config file to fill in the fields.
+The keypair field is the serialized SuiKeyPair that can be found in a typical .keystore file.
+
+Step 4:
+Initialize the gas pool:
+```bash
+GAS_STATION_AUTH=<some-secret> sui-gas-station init --config-path ./config.yaml --target-init-coin-balance <initial-per-coin-balance>
+```
+
+Step 5:
+Start a gas station server instance somewhere:
+```bash
+GAS_STATION_AUTH=<some-secret> sui-gas-station start-station-server --config-path ./config.yaml
+```
+It's safe to start multiple gas station server instances in the network, as long as they all share the same storage server instance.
 
 ## TODOs
 1. Add metrics
 2. Add more logging
 3. Add more tests
-4. Integrate with Redis DB
+4. Integrate with Redis DB?
 5. Integrate with AWS KMS
 6. Add crash recovery using local database.
 
