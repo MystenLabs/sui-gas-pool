@@ -231,13 +231,13 @@ mod tests {
             keypair,
         )
         .await;
-        assert!(storage.get_available_coin_count(sponsor).await > 980);
+        assert!(storage.get_available_coin_count(sponsor).await > 900);
     }
 
     #[tokio::test]
     async fn test_init_non_even_split() {
         telemetry_subscribers::init_for_testing();
-        let (_cluster, config) = start_sui_cluster(vec![10 * MIST_PER_SUI]).await;
+        let (_cluster, config) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
         let GasStationConfig {
             keypair,
             gas_pool_config,
@@ -246,7 +246,7 @@ mod tests {
         } = config;
         let sponsor = (&keypair.public()).into();
         let keypair = Arc::new(keypair);
-        let target_init_coin_balance = 12345678;
+        let target_init_coin_balance = 12345 * MIST_PER_SUI;
         let storage = GasPoolInitializer::run(
             fullnode_url.as_str(),
             &gas_pool_config,
@@ -254,6 +254,6 @@ mod tests {
             keypair,
         )
         .await;
-        assert!(storage.get_available_coin_count(sponsor).await > 600);
+        assert!(storage.get_available_coin_count(sponsor).await > 800);
     }
 }

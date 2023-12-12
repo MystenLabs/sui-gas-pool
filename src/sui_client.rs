@@ -79,26 +79,31 @@ impl SuiClient {
     }
 
     pub async fn get_latest_gas_objects(&self, object_ids: &[ObjectID]) -> UpdatedGasCoins {
-        let objects = retry_forever!(async {
-            let objects = self
-                .sui_client
-                .read_api()
-                .multi_get_object_with_options(
-                    object_ids.to_vec(),
-                    SuiObjectDataOptions::default().with_bcs(),
-                )
-                .await
-                .map_err(anyhow::Error::from)?;
-            if objects.len() != object_ids.len() {
-                anyhow::bail!(
-                    "Unable to get all gas coins, got {} out of {}",
-                    objects.len(),
-                    object_ids.len()
-                );
-            }
-            Ok(objects)
-        })
-        .unwrap();
+        let mut objects = vec![];
+        for chunk in object_ids.chunks(50) {
+            objects.extend(
+                retry_forever!(async {
+                    let result = self
+                        .sui_client
+                        .read_api()
+                        .multi_get_object_with_options(
+                            chunk.to_vec(),
+                            SuiObjectDataOptions::default().with_bcs(),
+                        )
+                        .await
+                        .map_err(anyhow::Error::from)?;
+                    if result.len() != chunk.len() {
+                        anyhow::bail!(
+                            "Unable to get all gas coins, got {} out of {}",
+                            result.len(),
+                            chunk.len()
+                        );
+                    }
+                    Ok(result)
+                })
+                .unwrap(),
+            );
+        }
         let mut result = UpdatedGasCoins::default();
         objects.iter().zip(object_ids).for_each(|(o, id)| {
             match Self::try_get_sui_coin_balance(o) {
