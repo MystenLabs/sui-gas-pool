@@ -8,6 +8,7 @@ use crate::types::GasCoin;
 use parking_lot::Mutex;
 use shared_crypto::intent::Intent;
 use std::collections::VecDeque;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
@@ -19,6 +20,7 @@ use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::transaction::{Argument, Command, Transaction, TransactionData};
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
 use tracing::{debug, info};
 
 /// We do not split a coin if it's below this balance.
@@ -29,12 +31,12 @@ pub struct GasPoolInitializer {}
 
 #[derive(Clone)]
 struct CoinSplitEnv {
-    task_id: u64,
     target_init_coin_balance: u64,
     sponsor_address: SuiAddress,
     keypair: Arc<SuiKeyPair>,
     sui_client: SuiClient,
     task_queue: Arc<Mutex<VecDeque<JoinHandle<Vec<GasCoin>>>>>,
+    total_coin_count: Arc<AtomicUsize>,
 }
 
 impl CoinSplitEnv {
@@ -46,11 +48,19 @@ impl CoinSplitEnv {
             );
             return Some(coin);
         }
-        let mut env = self.clone();
-        env.task_id += 1;
+        let env = self.clone();
         let task = tokio::task::spawn(async move { env.split_one_gas_coin(coin).await });
         self.task_queue.lock().push_back(task);
         None
+    }
+
+    fn increment_total_coin_count_by(&self, delta: usize) {
+        info!(
+            "Number of coins got so far: {}",
+            self.total_coin_count
+                .fetch_add(delta, std::sync::atomic::Ordering::Relaxed)
+                + delta
+        );
     }
 
     async fn split_one_gas_coin(self, coin: GasCoin) -> Vec<GasCoin> {
@@ -59,7 +69,6 @@ impl CoinSplitEnv {
         let split_off_count =
             (coin.balance - MIN_SPLIT_COIN_BALANCE) / self.target_init_coin_balance;
         if split_off_count > 500 {
-            // divide by 100
             debug!("Evenly splitting coin {:?} into 100 coins", coin);
             let pure_arg = pt_builder.pure(100u64).unwrap();
             pt_builder.programmable_move_call(
@@ -109,12 +118,13 @@ impl CoinSplitEnv {
         );
         let effects = self
             .sui_client
-            .execute_transaction(tx, Duration::from_secs(1))
+            .execute_transaction(tx.clone(), Duration::from_secs(10))
             .await
             .expect("Failed to execute transaction after retries, give up");
-        debug_assert!(
+        assert!(
             effects.status().is_ok(),
-            "Transaction failed. This should never happen: {:?}",
+            "Transaction failed. This should never happen. Tx: {:?}, effects: {:?}",
+            tx,
             effects
         );
         let all_changed: Vec<ObjectID> = effects
@@ -122,6 +132,7 @@ impl CoinSplitEnv {
             .into_iter()
             .map(|(oref, _)| oref.reference.object_id)
             .collect();
+        self.increment_total_coin_count_by(all_changed.len() - 1);
         let updated = self.sui_client.get_latest_gas_objects(&all_changed).await;
         assert!(updated.deleted_gas_coins.is_empty());
         let mut result = vec![];
@@ -166,6 +177,8 @@ impl GasPoolInitializer {
         let storage = connect_storage(gas_pool_config);
         let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
+        let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));
+        let start = Instant::now();
         let result = Self::split_gas_coins(
             coins,
             CoinSplitEnv {
@@ -174,7 +187,7 @@ impl GasPoolInitializer {
                 keypair,
                 sui_client,
                 task_queue: Default::default(),
-                task_id: 0,
+                total_coin_count,
             },
         )
         .await;
@@ -184,6 +197,7 @@ impl GasPoolInitializer {
                 .await
                 .unwrap();
         }
+        info!("Pool initialization took {:?}s", start.elapsed().as_secs());
         storage
     }
 }
@@ -195,6 +209,8 @@ mod tests {
     use crate::test_env::start_sui_cluster;
     use std::sync::Arc;
     use sui_types::gas_coin::MIST_PER_SUI;
+
+    // TODO: Add more accurate tests.
 
     #[tokio::test]
     async fn test_basic_init_flow() {
