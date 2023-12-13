@@ -1,29 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::encoding::Base64;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sui_json_rpc_types::SuiTransactionBlockEffects;
+use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
 use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::signature::GenericSignature;
-use sui_types::transaction::TransactionData;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ReserveGasRequest {
     pub gas_budget: u64,
     pub request_sponsor: Option<SuiAddress>,
     pub reserve_duration_secs: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ReserveGasResponse {
-    pub gas_coins: Option<(SuiAddress, Vec<ObjectRef>)>,
+    pub gas_coins: Option<(SuiAddress, Vec<SuiObjectRef>)>,
     pub error: Option<String>,
 }
 
 impl ReserveGasResponse {
     pub fn new_ok(sponsor: SuiAddress, gas_coins: Vec<ObjectRef>) -> Self {
         Self {
-            gas_coins: Some((sponsor, gas_coins)),
+            gas_coins: Some((sponsor, gas_coins.into_iter().map(|c| c.into()).collect())),
             error: None,
         }
     }
@@ -36,13 +36,13 @@ impl ReserveGasResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ExecuteTxRequest {
-    pub tx: TransactionData,
-    pub user_sig: GenericSignature,
+    pub tx_bytes: Base64,
+    pub user_sig: Base64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ExecuteTxResponse {
     pub effects: Option<SuiTransactionBlockEffects>,
     pub error: Option<String>,

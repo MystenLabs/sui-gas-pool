@@ -148,6 +148,10 @@ async fn update_gas_coins(
         released_gas_coins,
         deleted_gas_coins,
     } = payload;
+    let released_gas_coins = released_gas_coins
+        .into_iter()
+        .map(|c| c.into())
+        .collect::<Vec<_>>();
     match server
         .storage
         .update_gas_coins(sponsor_address, released_gas_coins, deleted_gas_coins)

@@ -48,20 +48,25 @@ An HTTP server is implemented to take the following 3 requests:
 
 ```rust
 pub struct ReserveGasRequest {
+    /// Desired gas budget. The response will contain gas coins that have total balance >= gas_budget.
     pub gas_budget: u64,
     /// If request_sponsor is None, the station will pick one automatically.
     pub request_sponsor: Option<SuiAddress>,
+    /// The reserved gas coins will be released back to the pool after this duration expires.
     pub reserve_duration_secs: u64,
 }
 
 pub struct ReserveGasResponse {
-    pub gas_coins: Option<(SuiAddress, Vec<ObjectRef>)>,
+    /// The sponsor address and the list of gas coins that are reserved.
+    pub gas_coins: Option<(SuiAddress, Vec<SuiObjectRef>)>,
     pub error: Option<String>,
 }
 
 pub struct ExecuteTxRequest {
-    pub tx: TransactionData,
-    pub user_sig: GenericSignature,
+    /// BCS serialized transaction data bytes without its type tag, as base-64 encoded string.
+    pub tx_bytes: Base64,
+    /// User signature (`flag || signature || pubkey` bytes, as base-64 encoded string). Signature is committed to the intent message of the transaction data, as base-64 encoded string.
+    pub user_sig: Base64,
 }
 
 pub struct ExecuteTxResponse {
@@ -122,5 +127,3 @@ It's safe to start multiple gas station server instances in the network, as long
 4. Integrate with Redis DB?
 5. Integrate with AWS KMS
 6. Add crash recovery using local database.
-7. Check storage health upon startup.
-8. Use RPC friendly types.

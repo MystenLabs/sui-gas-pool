@@ -14,10 +14,14 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router, TypedHeader};
+use fastcrypto::encoding::Base64;
+use fastcrypto::traits::ToFromBytes;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
+use sui_types::signature::GenericSignature;
+use sui_types::transaction::TransactionData;
 use test_cluster::TestCluster;
 use tokio::task::JoinHandle;
 use tracing::{debug, info};
@@ -142,13 +146,42 @@ async fn execute_tx(
             ))),
         );
     }
-    let ExecuteTxRequest { tx, user_sig } = payload;
+    let ExecuteTxRequest { tx_bytes, user_sig } = payload;
+    let Ok((tx_data, user_sig)) = convert_tx_and_sig(tx_bytes, user_sig) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                "Invalid bcs bytes for TransactionData"
+            ))),
+        );
+    };
     // TODO: Should we check user signature?
-    match server.gas_station.execute_transaction(tx, user_sig).await {
+    match server
+        .gas_station
+        .execute_transaction(tx_data, user_sig)
+        .await
+    {
         Ok(effects) => (StatusCode::OK, Json(ExecuteTxResponse::new_ok(effects))),
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ExecuteTxResponse::new_err(err)),
         ),
     }
+}
+
+fn convert_tx_and_sig(
+    tx_bytes: Base64,
+    user_sig: Base64,
+) -> anyhow::Result<(TransactionData, GenericSignature)> {
+    let tx = bcs::from_bytes(
+        &tx_bytes
+            .to_vec()
+            .map_err(|_| anyhow::anyhow!("Failed to convert tx_bytes to vector"))?,
+    )?;
+    let user_sig = GenericSignature::from_bytes(
+        &user_sig
+            .to_vec()
+            .map_err(|_| anyhow::anyhow!("Failed to convert user_sig to vector"))?,
+    )?;
+    Ok((tx, user_sig))
 }

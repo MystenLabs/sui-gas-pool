@@ -53,11 +53,14 @@ impl Storage for RocksDbRpcClient {
             .await?
             .json::<ReserveGasStorageResponse>()
             .await?;
-        response.gas_coins.ok_or_else(|| {
-            anyhow::anyhow!(response
-                .error
-                .unwrap_or_else(|| "Unknown error".to_string()))
-        })
+        response
+            .gas_coins
+            .ok_or_else(|| {
+                anyhow::anyhow!(response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()))
+            })
+            .map(|gas_coins| gas_coins.into_iter().map(|c| c.into()).collect())
     }
 
     async fn update_gas_coins(
@@ -66,6 +69,7 @@ impl Storage for RocksDbRpcClient {
         released_gas_coins: Vec<GasCoin>,
         deleted_gas_coins: Vec<ObjectID>,
     ) -> anyhow::Result<()> {
+        let released_gas_coins = released_gas_coins.into_iter().map(|c| c.into()).collect();
         let request = UpdateGasStorageRequest {
             sponsor_address,
             released_gas_coins,

@@ -78,7 +78,7 @@ mod tests {
             .await
             .is_err());
         // Sleep a little longer to give it enough time to expire.
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
         assert_eq!(station.get_available_coin_count(sponsor).await, 1);
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         assert!(station

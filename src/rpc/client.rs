@@ -59,11 +59,19 @@ impl GasStationRpcClient {
             .await?
             .json::<ReserveGasResponse>()
             .await?;
-        response.gas_coins.ok_or_else(|| {
-            anyhow::anyhow!(response
-                .error
-                .unwrap_or_else(|| "Unknown error".to_string()))
-        })
+        response
+            .gas_coins
+            .ok_or_else(|| {
+                anyhow::anyhow!(response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()))
+            })
+            .map(|(sponsor, coins)| {
+                (
+                    sponsor,
+                    coins.into_iter().map(|c| c.to_object_ref()).collect(),
+                )
+            })
     }
 
     pub async fn execute_tx(

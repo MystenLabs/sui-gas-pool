@@ -13,6 +13,7 @@ mod tests {
     use crate::rpc::GasStationServer;
     use crate::test_env::create_test_transaction;
     use crate::AUTH_ENV_NAME;
+    use fastcrypto::encoding::Base64;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::gas_coin::MIST_PER_SUI;
 
@@ -35,8 +36,8 @@ mod tests {
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         let effects = client
             .execute_tx(ExecuteTxRequest {
-                tx: tx_data.clone(),
-                user_sig,
+                tx_bytes: Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()),
+                user_sig: Base64::from_bytes(user_sig.as_ref()),
             })
             .await
             .unwrap();
