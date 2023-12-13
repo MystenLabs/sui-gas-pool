@@ -122,4 +122,4 @@ It's safe to start multiple gas station server instances in the network, as long
 4. Integrate with Redis DB?
 5. Integrate with AWS KMS
 6. Add crash recovery using local database.
-
+7. Check storage health upon startup.

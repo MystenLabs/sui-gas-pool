@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-mod client;
+pub mod client;
 mod rpc_types;
 mod server;
 

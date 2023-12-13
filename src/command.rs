@@ -5,8 +5,10 @@ use crate::benchmarks::benchmark_reserve_only;
 use crate::config::{GasPoolStorageConfig, GasStationConfig};
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
+use crate::rpc::client::GasStationRpcClient;
 use crate::rpc::GasStationServer;
 use crate::storage::connect_storage;
+use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
 use crate::storage::rocksdb::RocksDBStorage;
 use clap::*;
@@ -62,11 +64,28 @@ pub enum Command {
         #[arg(long, help = "Path to config file")]
         config_path: PathBuf,
     },
+    #[clap(name = "cli")]
+    CLI {
+        #[clap(subcommand)]
+        cli_command: CliCommand,
+    },
 }
 
 #[derive(Copy, Clone, ValueEnum)]
 pub enum BenchmarkMode {
     ReserveOnly,
+}
+
+#[derive(Subcommand)]
+pub enum CliCommand {
+    CheckStorageHealth {
+        #[clap(long, help = "Full URL of the storage RPC server")]
+        storage_rpc_url: String,
+    },
+    CheckStationHealth {
+        #[clap(long, help = "Full URL of the station RPC server")]
+        station_rpc_url: String,
+    },
 }
 
 impl Command {
@@ -143,6 +162,18 @@ impl Command {
                 };
                 config.save(config_path).unwrap();
             }
+            Command::CLI { cli_command } => match cli_command {
+                CliCommand::CheckStorageHealth { storage_rpc_url } => {
+                    let storage_client = RocksDbRpcClient::new(storage_rpc_url);
+                    storage_client.check_health().await.unwrap();
+                    println!("Storage server is healthy");
+                }
+                CliCommand::CheckStationHealth { station_rpc_url } => {
+                    let station_client = GasStationRpcClient::new(station_rpc_url);
+                    station_client.check_health().await.unwrap();
+                    println!("Station server is healthy");
+                }
+            },
         }
     }
 }
