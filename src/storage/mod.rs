@@ -47,6 +47,8 @@ pub trait Storage: Sync + Send {
         deleted_gas_coins: Vec<ObjectID>,
     ) -> anyhow::Result<()>;
 
+    async fn check_health(&self) -> anyhow::Result<()>;
+
     #[cfg(test)]
     async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize;
 
@@ -59,13 +61,18 @@ pub trait Storage: Sync + Send {
     // TODO: Add APIs to support collecting coins that were forgotten to be released.
 }
 
-pub fn connect_storage(config: &GasPoolStorageConfig) -> Arc<dyn Storage> {
-    match config {
+pub async fn connect_storage(config: &GasPoolStorageConfig) -> Arc<dyn Storage> {
+    let storage: Arc<dyn Storage> = match config {
         GasPoolStorageConfig::LocalRocksDb { db_path } => Arc::new(RocksDBStorage::new(db_path)),
         GasPoolStorageConfig::RemoteRocksDb { db_rpc_url } => {
             Arc::new(RocksDbRpcClient::new(db_rpc_url.clone()))
         }
-    }
+    };
+    storage
+        .check_health()
+        .await
+        .expect("Unable to connect to the storage layer");
+    storage
 }
 
 #[cfg(test)]

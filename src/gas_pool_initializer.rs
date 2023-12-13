@@ -174,7 +174,7 @@ impl GasPoolInitializer {
         keypair: Arc<SuiKeyPair>,
     ) -> Arc<dyn Storage> {
         let sui_client = SuiClient::new(fullnode_url).await;
-        let storage = connect_storage(gas_pool_config);
+        let storage = connect_storage(gas_pool_config).await;
         let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
         let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));

@@ -26,16 +26,6 @@ impl RocksDbRpcClient {
             server_address,
         }
     }
-
-    pub async fn check_health(&self) -> Result<(), reqwest::Error> {
-        self.client
-            .get(format!("{}/", self.server_address))
-            .send()
-            .await?
-            .text()
-            .await?;
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -99,6 +89,21 @@ impl Storage for RocksDbRpcClient {
             Err(anyhow::anyhow!(err))
         } else {
             Ok(())
+        }
+    }
+
+    async fn check_health(&self) -> anyhow::Result<()> {
+        let result = self
+            .client
+            .get(format!("{}/", self.server_address))
+            .send()
+            .await?
+            .text()
+            .await?;
+        if result == "OK" {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Invalid health check response: {}", result))
         }
     }
 

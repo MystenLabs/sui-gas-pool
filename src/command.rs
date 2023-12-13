@@ -7,10 +7,10 @@ use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
 use crate::rpc::client::GasStationRpcClient;
 use crate::rpc::GasStationServer;
-use crate::storage::connect_storage;
 use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
 use crate::storage::rocksdb::RocksDBStorage;
+use crate::storage::{connect_storage, Storage};
 use clap::*;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
@@ -123,7 +123,7 @@ impl Command {
                 } = config;
                 let container = GasStationContainer::new(
                     Arc::new(keypair),
-                    connect_storage(&gas_pool_config),
+                    connect_storage(&gas_pool_config).await,
                     &fullnode_url,
                 )
                 .await;

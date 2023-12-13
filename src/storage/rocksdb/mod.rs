@@ -216,6 +216,10 @@ impl Storage for RocksDBStorage {
         )
     }
 
+    async fn check_health(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     #[cfg(test)]
     async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
         self.tables
