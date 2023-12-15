@@ -127,3 +127,7 @@ It's safe to start multiple gas station server instances in the network, as long
 4. Integrate with Redis DB?
 5. Integrate with AWS KMS
 6. Add crash recovery using local database.
+7. Make sure all the u64 in the RPC types are safe
+8. Support remote stress benchmarking
+9. Add ability to add more coins to the pool
+10. Think about load balancing and how to pair reservation and release.
