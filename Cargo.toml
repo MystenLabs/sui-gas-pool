@@ -20,6 +20,7 @@ repository = "https://github.com/MystenLabs/sui-gas-station"
 
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "643831ec3b67bdd2b5f998c0bec1b7c91823351f" }
 
+mysten-metrics = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "mysten-metrics" }
 sui-config = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-config" }
 sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-json-rpc-types" }
 sui-sdk = { git = "https://github.com/MystenLabs/sui", rev = "9d453e4613b72d2d41214a32afc97dd104143338", package = "sui-sdk" }
@@ -39,12 +40,14 @@ clap = "4.4.10"
 chrono = "0.4.19"
 eyre = "0.6.9"
 parking_lot = "0.12.1"
+prometheus = "0.13.3"
 rand = "0.8.5"
 reqwest = { version = "0.11.22", features = ["json"] }
 rocksdb = "0.21.0"
 serde = { version = "1.0.193", features = ["derive", "rc"] }
 serde_with = "3.4.0"
 schemars = "0.8.16"
+tap = "1.0.1"
 tempfile = "3.2.0"
 tracing = "0.1.40"
 tokio = { version = "1.34.0", features = ["full"] }

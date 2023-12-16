@@ -5,6 +5,7 @@ pub mod rocksdb_rpc_client;
 pub mod rocksdb_rpc_server;
 mod rocksdb_rpc_types;
 
+use crate::metrics::StoragePoolMetrics;
 use crate::storage::{Storage, MAX_GAS_PER_QUERY};
 use crate::types::GasCoin;
 use anyhow::bail;
@@ -29,6 +30,7 @@ pub struct RocksDBStorage {
     /// The RwLock is to allow adding new addresses.
     /// The inner mutex is used to ensure operations on the available coin queue of each address are atomic.
     mutexes: RwLock<HashMap<SuiAddress, Mutex<PerAddressState>>>,
+    pub metrics: Arc<StoragePoolMetrics>,
 }
 
 #[derive(Default)]
@@ -170,10 +172,11 @@ impl RocksDBStorageTables {
 }
 
 impl RocksDBStorage {
-    pub fn new(parent_path: &Path) -> Self {
+    pub fn new(parent_path: &Path, metrics: Arc<StoragePoolMetrics>) -> Self {
         Self {
             tables: Arc::new(RocksDBStorageTables::open(parent_path)),
             mutexes: RwLock::new(HashMap::new()),
+            metrics,
         }
     }
 }
@@ -189,8 +192,21 @@ impl Storage for RocksDBStorage {
             bail!("Target budget must be positive");
         }
         if let Some(mutex) = self.mutexes.read().get(&sponsor_address) {
-            self.tables
-                .take_first_available_gas_coins(mutex, sponsor_address, target_budget)
+            let gas_coins = self.tables.take_first_available_gas_coins(
+                mutex,
+                sponsor_address,
+                target_budget,
+            )?;
+            self.metrics
+                .cur_num_available_gas_coins
+                .sub(gas_coins.len() as i64);
+            self.metrics
+                .cur_num_reserved_gas_coins
+                .add(gas_coins.len() as i64);
+            self.metrics
+                .cur_total_available_gas_balance
+                .sub(gas_coins.iter().map(|c| c.balance as i64).sum());
+            Ok(gas_coins)
         } else {
             bail!("Invalid sponsor address: {:?}", sponsor_address)
         }
@@ -207,13 +223,26 @@ impl Storage for RocksDBStorage {
                 .write()
                 .insert(sponsor_address, Mutex::new(PerAddressState::default()));
         }
+        let released_gas_coins_len = released_gas_coins.len() as i64;
+        let released_gas_coin_balance = released_gas_coins.iter().map(|c| c.balance as i64).sum();
+        let deleted_gas_coins_len = deleted_gas_coins.len() as i64;
         self.tables.update_gas_coins(
             // unwrap safe because we would add it above if not exist.
             self.mutexes.read().get(&sponsor_address).unwrap(),
             sponsor_address,
             released_gas_coins,
             deleted_gas_coins,
-        )
+        )?;
+        self.metrics
+            .cur_num_available_gas_coins
+            .add(released_gas_coins_len);
+        self.metrics
+            .cur_num_reserved_gas_coins
+            .sub(released_gas_coins_len + deleted_gas_coins_len);
+        self.metrics
+            .cur_total_available_gas_balance
+            .add(released_gas_coin_balance);
+        Ok(())
     }
 
     async fn check_health(&self) -> anyhow::Result<()> {

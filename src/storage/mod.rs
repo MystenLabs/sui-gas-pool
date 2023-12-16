@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::GasPoolStorageConfig;
+use crate::metrics::StoragePoolMetrics;
 use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::RocksDBStorage;
 use crate::types::GasCoin;
@@ -63,7 +64,10 @@ pub trait Storage: Sync + Send {
 
 pub async fn connect_storage(config: &GasPoolStorageConfig) -> Arc<dyn Storage> {
     let storage: Arc<dyn Storage> = match config {
-        GasPoolStorageConfig::LocalRocksDb { db_path } => Arc::new(RocksDBStorage::new(db_path)),
+        GasPoolStorageConfig::LocalRocksDbForTesting { db_path } => Arc::new(RocksDBStorage::new(
+            db_path,
+            StoragePoolMetrics::new_for_testing(),
+        )),
         GasPoolStorageConfig::RemoteRocksDb { db_rpc_url } => {
             Arc::new(RocksDbRpcClient::new(db_rpc_url.clone()))
         }

@@ -4,6 +4,7 @@
 use crate::config::GasStationConfig;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
+use crate::metrics::GasStationMetrics;
 use std::sync::Arc;
 use sui_swarm_config::genesis_config::AccountConfig;
 use sui_types::base_types::{ObjectRef, SuiAddress};
@@ -55,7 +56,13 @@ pub async fn start_gas_station(init_gas_amounts: Vec<u64>) -> (TestCluster, GasS
         keypair.clone(),
     )
     .await;
-    let station = GasStationContainer::new(keypair, storage, fullnode_url.as_str()).await;
+    let station = GasStationContainer::new(
+        keypair,
+        storage,
+        fullnode_url.as_str(),
+        GasStationMetrics::new_for_testing(),
+    )
+    .await;
     (test_cluster, station)
 }
 

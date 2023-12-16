@@ -7,6 +7,7 @@ pub mod config;
 pub mod errors;
 pub mod gas_pool_initializer;
 pub mod gas_station;
+pub mod metrics;
 pub mod rpc;
 pub mod storage;
 pub mod sui_client;

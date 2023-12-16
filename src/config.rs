@@ -41,13 +41,13 @@ impl Default for GasStationConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum GasPoolStorageConfig {
-    LocalRocksDb { db_path: PathBuf },
+    LocalRocksDbForTesting { db_path: PathBuf },
     RemoteRocksDb { db_rpc_url: String },
 }
 
 impl Default for GasPoolStorageConfig {
     fn default() -> Self {
-        GasPoolStorageConfig::LocalRocksDb {
+        GasPoolStorageConfig::LocalRocksDbForTesting {
             db_path: tempfile::tempdir().unwrap().into_path(),
         }
     }
