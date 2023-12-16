@@ -5,6 +5,7 @@ use crate::benchmarks::benchmark_reserve_only;
 use crate::config::{GasPoolStorageConfig, GasStationConfig};
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
+use crate::metrics::{GasStationMetrics, StoragePoolMetrics};
 use crate::rpc::client::GasStationRpcClient;
 use crate::rpc::GasStationServer;
 use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
@@ -12,6 +13,7 @@ use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
 use crate::storage::rocksdb::RocksDBStorage;
 use crate::storage::{connect_storage, Storage};
 use clap::*;
+use prometheus::Registry;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -89,7 +91,7 @@ pub enum CliCommand {
 }
 
 impl Command {
-    pub async fn execute(self) {
+    pub async fn execute(self, prometheus_registry: Registry) {
         match self {
             Command::Init {
                 config_path,
@@ -113,6 +115,7 @@ impl Command {
                 .await;
             }
             Command::StartStation { config_path } => {
+                let station_metrics = GasStationMetrics::new(&prometheus_registry);
                 let config: GasStationConfig = GasStationConfig::load(config_path).unwrap();
                 info!("Config: {:?}", config);
                 let GasStationConfig {
@@ -125,6 +128,7 @@ impl Command {
                     Arc::new(keypair),
                     connect_storage(&gas_pool_config).await,
                     &fullnode_url,
+                    station_metrics.clone(),
                 )
                 .await;
 
@@ -132,6 +136,7 @@ impl Command {
                     container.get_station(),
                     config.rpc_host_ip,
                     config.rpc_port,
+                    station_metrics,
                 )
                 .await;
                 server.handle.await.unwrap();
@@ -141,7 +146,8 @@ impl Command {
                 ip,
                 rpc_port,
             } => {
-                let storage = Arc::new(RocksDBStorage::new(db_path.as_path()));
+                let metrics = StoragePoolMetrics::new(&prometheus_registry);
+                let storage = Arc::new(RocksDBStorage::new(db_path.as_path(), metrics));
                 let server = RocksDbServer::new(storage, ip, rpc_port).await;
                 server.handle.await.unwrap();
             }

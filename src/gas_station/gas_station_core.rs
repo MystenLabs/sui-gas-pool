@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::gas_station::locked_gas_coins::LockedGasCoins;
+use crate::metrics::GasStationMetrics;
 use crate::retry_forever;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
@@ -15,6 +16,7 @@ use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::crypto::{Signature, SuiKeyPair};
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use tap::TapFallible;
 use tokio::task::JoinHandle;
 #[cfg(not(test))]
 use tokio_retry::strategy::FixedInterval;
@@ -35,6 +37,7 @@ pub struct GasStation {
     gas_pool_store: Arc<dyn Storage>,
     sui_client: SuiClient,
     locked_gas_coins: LockedGasCoins,
+    metrics: Arc<GasStationMetrics>,
 }
 
 impl GasStation {
@@ -48,6 +51,10 @@ impl GasStation {
                 if !unlocked_coins.is_empty() {
                     let mut unlocked_coins_map: HashMap<SuiAddress, Vec<ObjectID>> = HashMap::new();
                     for lock_info in unlocked_coins {
+                        self.metrics.num_expired_reservations.inc();
+                        self.metrics
+                            .num_expired_gas_coins
+                            .inc_by(lock_info.inner.objects.len() as u64);
                         unlocked_coins_map
                             .entry(lock_info.inner.sponsor)
                             .or_default()
@@ -87,6 +94,13 @@ impl GasStation {
                 .await
         })
         .unwrap();
+        self.metrics.cur_num_alive_reservations.dec();
+        self.metrics
+            .cur_num_reserved_gas_coins
+            .sub((latest.live_gas_coins.len() + latest.deleted_gas_coins.len()) as i64);
+        self.metrics
+            .num_gas_coins_smashed
+            .inc_by(latest.deleted_gas_coins.len() as u64);
         debug!(
             "Released {} coins to back to the pool, and deleted {} coins permanently",
             latest.live_gas_coins.len(),
@@ -115,9 +129,18 @@ impl GasStation {
         let gas_coins = self
             .gas_pool_store
             .reserve_gas_coins(sponsor, gas_budget)
-            .await?;
+            .await
+            .tap_err(|_| {
+                self.metrics.num_failed_storage_pool_reservation.inc();
+            })?;
+        self.metrics.num_successful_storage_pool_reservation.inc();
+
         self.locked_gas_coins
             .add_locked_coins(sponsor, &gas_coins, duration);
+        self.metrics.cur_num_alive_reservations.inc();
+        self.metrics
+            .cur_num_reserved_gas_coins
+            .add(gas_coins.len() as i64);
         Ok((
             sponsor,
             gas_coins.into_iter().map(|c| c.object_ref).collect(),
@@ -142,6 +165,10 @@ impl GasStation {
             .collect();
         debug!("Payment coins: {:?}", payment);
         self.locked_gas_coins.remove_locked_coins(&payment)?;
+        self.metrics.num_released_reservations.inc();
+        self.metrics
+            .num_released_gas_coins
+            .inc_by(payment.len() as u64);
 
         // TODO: Remove clone once we have a better Transaction construction API.
         let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
@@ -157,6 +184,7 @@ impl GasStation {
             .await;
         // Regardless of whether the transaction succeeded, we need to release the coins.
         self.release_gas_coins(sponsor, &payment).await;
+        self.metrics.num_released_reservations.inc();
         response
     }
 
@@ -173,6 +201,7 @@ impl GasStationContainer {
         keypair: Arc<SuiKeyPair>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
+        metrics: Arc<GasStationMetrics>,
     ) -> Self {
         let sui_client = SuiClient::new(fullnode_url).await;
         let sponsor = (&keypair.public()).into();
@@ -182,6 +211,7 @@ impl GasStationContainer {
             gas_pool_store,
             sui_client,
             locked_gas_coins: LockedGasCoins::default(),
+            metrics,
         });
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
         let _coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;

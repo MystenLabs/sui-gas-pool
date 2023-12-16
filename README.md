@@ -132,3 +132,5 @@ It's safe to start multiple gas station server instances in the network, as long
 9. Add ability to add more coins to the pool
 10. Think about load balancing and how to pair reservation and release.
 11. Allows pool initialization with target init amount less than 1SUI.
+12. Remove dependencies to sui-test-cluster in non-test build.
+13. Move some of the commands out to separate binaries. Keep the main binary for the two servers only.

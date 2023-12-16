@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::metrics::StoragePoolMetrics;
 use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::rocksdb_rpc_types::{
     ReserveGasStorageRequest, ReserveGasStorageResponse, UpdateGasStorageRequest,
@@ -68,7 +69,10 @@ impl RocksDbServer {
         let localhost = localhost_for_testing();
         std::env::set_var(AUTH_ENV_NAME, "some secret");
         let storage_rpc_server = RocksDbServer::new(
-            Arc::new(RocksDBStorage::new(tempfile::tempdir().unwrap().path())),
+            Arc::new(RocksDBStorage::new(
+                tempfile::tempdir().unwrap().path(),
+                StoragePoolMetrics::new_for_testing(),
+            )),
             localhost.parse().unwrap(),
             get_available_port(&localhost),
         )
@@ -100,6 +104,11 @@ async fn reserve_gas_coins(
     Extension(server): Extension<ServerState>,
     Json(payload): Json<ReserveGasStorageRequest>,
 ) -> impl IntoResponse {
+    server
+        .storage
+        .metrics
+        .num_total_storage_reserve_gas_coins_requests
+        .inc();
     debug!("Received v1 reserve_gas_coins request: {:?}", payload);
     if authorization.token() != server.secret.as_str() {
         return (
@@ -109,6 +118,11 @@ async fn reserve_gas_coins(
             ))),
         );
     }
+    server
+        .storage
+        .metrics
+        .num_authorized_storage_reserve_gas_coins_requests
+        .inc();
     let ReserveGasStorageRequest {
         gas_budget,
         request_sponsor,
@@ -119,6 +133,11 @@ async fn reserve_gas_coins(
         .await
     {
         Ok(gas_coins) => {
+            server
+                .storage
+                .metrics
+                .num_successful_storage_reserve_gas_coins_requests
+                .inc();
             let response = ReserveGasStorageResponse::new_ok(gas_coins);
             (StatusCode::OK, Json(response))
         }
@@ -134,6 +153,11 @@ async fn update_gas_coins(
     Extension(server): Extension<ServerState>,
     Json(payload): Json<UpdateGasStorageRequest>,
 ) -> impl IntoResponse {
+    server
+        .storage
+        .metrics
+        .num_total_storage_update_gas_coins_requests
+        .inc();
     debug!("Received v1 update_gas_coins request: {:?}", payload);
     if authorization.token() != server.secret.as_ref() {
         return (
@@ -143,6 +167,11 @@ async fn update_gas_coins(
             ))),
         );
     }
+    server
+        .storage
+        .metrics
+        .num_authorized_storage_update_gas_coins_requests
+        .inc();
     let UpdateGasStorageRequest {
         sponsor_address,
         released_gas_coins,
@@ -157,7 +186,14 @@ async fn update_gas_coins(
         .update_gas_coins(sponsor_address, released_gas_coins, deleted_gas_coins)
         .await
     {
-        Ok(()) => (StatusCode::OK, Json(UpdateGasStorageResponse::new_ok())),
+        Ok(()) => {
+            server
+                .storage
+                .metrics
+                .num_successful_storage_update_gas_coins_requests
+                .inc();
+            (StatusCode::OK, Json(UpdateGasStorageResponse::new_ok()))
+        }
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(UpdateGasStorageResponse::new_err(err)),
