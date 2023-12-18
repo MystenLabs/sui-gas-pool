@@ -43,6 +43,7 @@ impl LockedGasCoinsInner {
                 .iter()
                 .map(|c| (c.object_ref.0, lock_info.clone())),
         );
+        debug!("Added coin lock info: {:?}", lock_info);
         self.unlock_queue.push(Reverse(lock_info));
     }
 
@@ -62,7 +63,7 @@ impl LockedGasCoinsInner {
                     .is_ok()
                 {
                     debug!(
-                        "Coins {:?} can be unlocked because its unlock time is before now {:?}",
+                        "Coins {:?} will be unlocked since its lock time expired. Current time: {:?}",
                         coin_info.inner, now
                     );
                     unlocked_coins.push(coin_info);
@@ -95,11 +96,16 @@ impl LockedGasCoinsInner {
                 anyhow::bail!("Coin {} is not locked", c)
             }
         }
+        let unique_lock_info = unique_lock_info.unwrap();
         // unwrap safe because we have checked that gas_coins is not empty,
         // and one iteration will either return early or set unique_lock_info.
-        if unique_lock_info.unwrap().inner.objects != unique_gas_coins {
+        if unique_lock_info.inner.objects != unique_gas_coins {
             anyhow::bail!("Gas coins provided are inconsistent with the locked ones");
         }
+        debug!(
+            "Removing locked gas coins belong to the lock info: {:?}",
+            unique_lock_info
+        );
         for c in gas_coins {
             self.locked_gas_coins.remove(c);
         }
