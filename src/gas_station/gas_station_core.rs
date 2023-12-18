@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 use tokio_retry::strategy::FixedInterval;
 #[cfg(not(test))]
 use tokio_retry::Retry;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 // TODO: Add crash recovery using a persistent storage.
 
@@ -49,6 +49,7 @@ impl GasStation {
             loop {
                 let unlocked_coins = self.locked_gas_coins.unlock_if_expired();
                 if !unlocked_coins.is_empty() {
+                    debug!("Coins that are expired: {:?}", unlocked_coins);
                     let mut unlocked_coins_map: HashMap<SuiAddress, Vec<ObjectID>> = HashMap::new();
                     for lock_info in unlocked_coins {
                         self.metrics.num_expired_reservations.inc();
@@ -84,6 +85,7 @@ impl GasStation {
             sponsor_address, gas_coins
         );
         let latest = self.sui_client.get_latest_gas_objects(gas_coins).await;
+        debug!("Latest coin state: {:?}", latest);
         retry_forever!(async {
             self.gas_pool_store
                 .update_gas_coins(
@@ -92,6 +94,7 @@ impl GasStation {
                     latest.deleted_gas_coins.clone(),
                 )
                 .await
+                .tap_err(|err| error!("Failed to call update_gas_coins on storage: {:?}", err))
         })
         .unwrap();
         self.metrics.cur_num_alive_reservations.dec();
@@ -101,7 +104,7 @@ impl GasStation {
         self.metrics
             .num_gas_coins_smashed
             .inc_by(latest.deleted_gas_coins.len() as u64);
-        debug!(
+        info!(
             "Released {} coins to back to the pool, and deleted {} coins permanently",
             latest.live_gas_coins.len(),
             latest.deleted_gas_coins.len()
@@ -114,18 +117,16 @@ impl GasStation {
         gas_budget: u64,
         duration: Duration,
     ) -> anyhow::Result<(SuiAddress, Vec<ObjectRef>)> {
-        let sponsor =
-            match request_sponsor {
-                Some(sponsor) => {
-                    if !self.keypairs.contains_key(&sponsor) {
-                        bail!("Sponsor {:?} is not registered", sponsor);
-                    };
-                    sponsor
-                }
-                None => *self.keypairs.keys().next().ok_or_else(|| {
-                    anyhow::anyhow!("No sponsor is registered in the gas station")
-                })?,
-            };
+        let sponsor = match request_sponsor {
+            Some(sponsor) => {
+                if !self.keypairs.contains_key(&sponsor) {
+                    bail!("Sponsor {:?} is not registered", sponsor);
+                };
+                sponsor
+            }
+            // unwrap is safe because the gas station is constructed using some keypair.
+            None => *self.keypairs.keys().next().unwrap(),
+        };
         let gas_coins = self
             .gas_pool_store
             .reserve_gas_coins(sponsor, gas_budget)
@@ -133,6 +134,10 @@ impl GasStation {
             .tap_err(|_| {
                 self.metrics.num_failed_storage_pool_reservation.inc();
             })?;
+        info!(
+            "Reserved gas coins with sponsor={:?}, budget={:?} and duration={:?}: {:?}",
+            sponsor, gas_budget, duration, gas_coins
+        );
         self.metrics.num_successful_storage_pool_reservation.inc();
 
         self.locked_gas_coins
@@ -163,7 +168,7 @@ impl GasStation {
             .iter()
             .map(|oref| oref.0)
             .collect();
-        debug!("Payment coins: {:?}", payment);
+        debug!("Payment coins in transaction: {:?}", payment);
         self.locked_gas_coins.remove_locked_coins(&payment)?;
         self.metrics.num_released_reservations.inc();
         self.metrics

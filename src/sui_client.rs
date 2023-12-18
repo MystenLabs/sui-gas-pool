@@ -11,13 +11,14 @@ use sui_json_rpc_types::{
 use sui_sdk::SuiClientBuilder;
 use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::transaction::Transaction;
+use tap::TapFallible;
 use tokio_retry::strategy::ExponentialBackoff;
 #[cfg(not(test))]
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct UpdatedGasCoins {
     pub live_gas_coins: Vec<GasCoin>,
     pub deleted_gas_coins: Vec<ObjectID>,
@@ -50,6 +51,7 @@ impl SuiClient {
                     .coin_read_api()
                     .get_coins(address, None, cursor, None)
                     .await
+                    .tap_err(|err| error!("Failed to get owned gas coins: {:?}", err))
             })
             .unwrap();
             for coin in page.data {
@@ -74,6 +76,7 @@ impl SuiClient {
                 .governance_api()
                 .get_reference_gas_price()
                 .await
+                .tap_err(|err| error!("Failed to get reference gas price: {:?}", err))
         })
         .unwrap()
     }
@@ -91,7 +94,8 @@ impl SuiClient {
                             SuiObjectDataOptions::default().with_bcs(),
                         )
                         .await
-                        .map_err(anyhow::Error::from)?;
+                        .map_err(anyhow::Error::from)
+                        .tap_err(|err| error!("Failed to read objects: {:?}", err))?;
                     if result.len() != chunk.len() {
                         anyhow::bail!(
                             "Unable to get all gas coins, got {} out of {}",
