@@ -13,7 +13,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_station_reserve_gas() {
-        let (_test_cluster, container) = start_gas_station(vec![MIST_PER_SUI; 10]).await;
+        let (_test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_station();
         let (sponsor1, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -36,7 +37,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_gas_station_flow() {
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI]).await;
+        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
         let station = container.get_station();
         assert!(station
             .reserve_gas(None, MIST_PER_SUI + 1, Duration::from_secs(10))
@@ -65,7 +66,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_coin_expiration() {
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI]).await;
+        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
         let station = container.get_station();
         let (sponsor, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI, Duration::from_secs(1))
@@ -93,7 +94,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_incomplete_gas_usage() {
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI; 10]).await;
+        let (test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_station();
         let (sponsor, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -122,7 +124,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mixed_up_gas_coins() {
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI; 10]).await;
+        let (test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_station();
         let (sponsor, gas_coins1) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))

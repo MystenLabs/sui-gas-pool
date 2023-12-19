@@ -64,8 +64,10 @@ impl GasStationServer {
 
     pub async fn start_rpc_server_for_testing(
         init_gas_amounts: Vec<u64>,
+        target_init_balance: u64,
     ) -> (TestCluster, GasStationContainer, GasStationServer) {
-        let (test_cluster, container) = start_gas_station(init_gas_amounts).await;
+        let (test_cluster, container) =
+            start_gas_station(init_gas_amounts, target_init_balance).await;
         let localhost = localhost_for_testing();
         std::env::set_var(AUTH_ENV_NAME, "some secret");
         let server = GasStationServer::new(

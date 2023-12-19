@@ -7,41 +7,40 @@ use crate::sui_client::SuiClient;
 use crate::types::GasCoin;
 use parking_lot::Mutex;
 use shared_crypto::intent::Intent;
+use std::cmp::min;
 use std::collections::VecDeque;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use sui_types::base_types::SuiAddress;
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
 use sui_types::crypto::SuiKeyPair;
-use sui_types::gas_coin::{GAS, MIST_PER_SUI};
+use sui_types::gas_coin::GAS;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, Command, Transaction, TransactionData};
+use sui_types::transaction::{Argument, Transaction, TransactionData};
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
-use tracing::{debug, info};
-
-/// We do not split a coin if it's below this balance.
-/// This is important because otherwise we may not even afford the gas cost of splitting.
-const MIN_SPLIT_COIN_BALANCE: u64 = MIST_PER_SUI;
+use tracing::{debug, error};
 
 pub struct GasPoolInitializer {}
 
 #[derive(Clone)]
 struct CoinSplitEnv {
     target_init_coin_balance: u64,
+    gas_cost_per_object: u64,
     sponsor_address: SuiAddress,
     keypair: Arc<SuiKeyPair>,
     sui_client: SuiClient,
     task_queue: Arc<Mutex<VecDeque<JoinHandle<Vec<GasCoin>>>>>,
     total_coin_count: Arc<AtomicUsize>,
+    rgp: u64,
 }
 
 impl CoinSplitEnv {
     fn enqueue_task(&self, coin: GasCoin) -> Option<GasCoin> {
-        if coin.balance <= MIN_SPLIT_COIN_BALANCE + self.target_init_coin_balance {
+        if coin.balance <= (self.gas_cost_per_object + self.target_init_coin_balance) * 2 {
             debug!(
                 "Skip splitting coin {:?} because it has small balance",
                 coin
@@ -55,7 +54,7 @@ impl CoinSplitEnv {
     }
 
     fn increment_total_coin_count_by(&self, delta: usize) {
-        info!(
+        println!(
             "Number of coins got so far: {}",
             self.total_coin_count
                 .fetch_add(delta, std::sync::atomic::Ordering::Relaxed)
@@ -64,47 +63,32 @@ impl CoinSplitEnv {
     }
 
     async fn split_one_gas_coin(self, coin: GasCoin) -> Vec<GasCoin> {
-        let rgp = self.sui_client.get_reference_gas_price().await;
+        let rgp = self.rgp;
+        let split_count = min(
+            // Max number of object mutations per transaction is 2048.
+            2000,
+            coin.balance / (self.gas_cost_per_object + self.target_init_coin_balance),
+        );
+        debug!(
+            "Evenly splitting coin {:?} into {} coins",
+            coin, split_count
+        );
         let mut pt_builder = ProgrammableTransactionBuilder::new();
-        let split_off_count =
-            (coin.balance - MIN_SPLIT_COIN_BALANCE) / self.target_init_coin_balance;
-        if split_off_count > 500 {
-            debug!("Evenly splitting coin {:?} into 100 coins", coin);
-            let pure_arg = pt_builder.pure(100u64).unwrap();
-            pt_builder.programmable_move_call(
-                SUI_FRAMEWORK_PACKAGE_ID,
-                PAY_MODULE_NAME.into(),
-                PAY_SPLIT_N_FUNC_NAME.into(),
-                vec![GAS::type_tag()],
-                vec![Argument::GasCoin, pure_arg],
-            );
-        } else {
-            debug!(
-                "Splitting coin {:?} into {:?} coins, with target balance of {}",
-                coin,
-                split_off_count + 1,
-                self.target_init_coin_balance,
-            );
-            let amount_argument = pt_builder.pure(self.target_init_coin_balance).unwrap();
-            let amounts = (0..split_off_count)
-                .map(|_| amount_argument)
-                .collect::<Vec<_>>();
-            let split_coins = pt_builder.command(Command::SplitCoins(Argument::GasCoin, amounts));
-            let Argument::Result(split_coin_result_index) = split_coins else {
-                panic!("Unexpected split result");
-            };
-            let self_addr = pt_builder.pure(self.sponsor_address).unwrap();
-            let transfer_arguments = (0..split_off_count)
-                .map(|i| Argument::NestedResult(split_coin_result_index, i as u16))
-                .collect::<Vec<_>>();
-            pt_builder.command(Command::TransferObjects(transfer_arguments, self_addr));
-        }
+        let pure_arg = pt_builder.pure(split_count).unwrap();
+        pt_builder.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            PAY_MODULE_NAME.into(),
+            PAY_SPLIT_N_FUNC_NAME.into(),
+            vec![GAS::type_tag()],
+            vec![Argument::GasCoin, pure_arg],
+        );
         let pt = pt_builder.finish();
+        let budget = self.gas_cost_per_object * split_count;
         let tx = TransactionData::new_programmable(
             self.sponsor_address,
             vec![coin.object_ref],
             pt,
-            MIST_PER_SUI, // 1 SUI
+            budget,
             rgp,
         );
         let tx = Transaction::from_data_and_signer(
@@ -127,18 +111,21 @@ impl CoinSplitEnv {
             tx,
             effects
         );
-        let all_changed: Vec<ObjectID> = effects
-            .all_changed_objects()
-            .into_iter()
-            .map(|(oref, _)| oref.reference.object_id)
-            .collect();
-        self.increment_total_coin_count_by(all_changed.len() - 1);
-        let updated = self.sui_client.get_latest_gas_objects(&all_changed).await;
-        assert!(updated.deleted_gas_coins.is_empty());
         let mut result = vec![];
-        for coin in updated.live_gas_coins {
-            result.extend(self.enqueue_task(coin));
+        let new_coin_balance = (coin.balance - budget) / split_count;
+        for created in effects.created() {
+            result.extend(self.enqueue_task(GasCoin {
+                object_ref: created.reference.to_object_ref(),
+                balance: new_coin_balance,
+            }));
         }
+        let remaining_coin_balance = (coin.balance - new_coin_balance * (split_count - 1)) as i64
+            - effects.gas_cost_summary().net_gas_usage();
+        result.extend(self.enqueue_task(GasCoin {
+            object_ref: effects.gas_object().reference.to_object_ref(),
+            balance: remaining_coin_balance as u64,
+        }));
+        self.increment_total_coin_count_by(result.len() - 1);
         result
     }
 }
@@ -146,7 +133,7 @@ impl CoinSplitEnv {
 impl GasPoolInitializer {
     async fn split_gas_coins(coins: Vec<GasCoin>, env: CoinSplitEnv) -> Vec<GasCoin> {
         let total_balance: u64 = coins.iter().map(|c| c.balance).sum();
-        info!(
+        println!(
             "Splitting {} coins with total balance of {} into smaller coins with target balance of {}. This will result in close to {} coins",
             coins.len(),
             total_balance,
@@ -163,7 +150,13 @@ impl GasPoolInitializer {
             };
             result.extend(task.await.unwrap());
         }
-        info!("Splitting finished. Got {} coins", result.len());
+        let new_total_balance: u64 = result.iter().map(|c| c.balance).sum();
+        println!(
+            "Splitting finished. Got {} coins. New total balance: {}. Spent {} gas in total",
+            result.len(),
+            new_total_balance,
+            total_balance - new_total_balance
+        );
         result
     }
 
@@ -173,21 +166,32 @@ impl GasPoolInitializer {
         target_init_coin_balance: u64,
         keypair: Arc<SuiKeyPair>,
     ) -> Arc<dyn Storage> {
+        let start = Instant::now();
         let sui_client = SuiClient::new(fullnode_url).await;
         let storage = connect_storage(gas_pool_config).await;
         let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
         let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));
-        let start = Instant::now();
+        let rgp = sui_client.get_reference_gas_price().await;
+        if coins.is_empty() {
+            error!("The account doesn't own any gas coins");
+            return storage;
+        }
+        let gas_cost_per_object = sui_client
+            .calibrate_gas_cost_per_object(sponsor_address, &coins[0])
+            .await;
+        debug!("Calibrated gas cost per object: {:?}", gas_cost_per_object);
         let result = Self::split_gas_coins(
             coins,
             CoinSplitEnv {
                 target_init_coin_balance,
+                gas_cost_per_object,
                 sponsor_address,
                 keypair,
                 sui_client,
                 task_queue: Default::default(),
                 total_coin_count,
+                rgp,
             },
         )
         .await;
@@ -197,7 +201,7 @@ impl GasPoolInitializer {
                 .await
                 .unwrap();
         }
-        info!("Pool initialization took {:?}s", start.elapsed().as_secs());
+        println!("Pool initialization took {:?}s", start.elapsed().as_secs());
         storage
     }
 }

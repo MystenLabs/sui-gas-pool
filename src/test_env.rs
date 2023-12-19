@@ -40,7 +40,10 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, GasS
     (cluster, config)
 }
 
-pub async fn start_gas_station(init_gas_amounts: Vec<u64>) -> (TestCluster, GasStationContainer) {
+pub async fn start_gas_station(
+    init_gas_amounts: Vec<u64>,
+    target_init_balance: u64,
+) -> (TestCluster, GasStationContainer) {
     let (test_cluster, config) = start_sui_cluster(init_gas_amounts).await;
     let GasStationConfig {
         keypair,
@@ -52,7 +55,7 @@ pub async fn start_gas_station(init_gas_amounts: Vec<u64>) -> (TestCluster, GasS
     let storage = GasPoolInitializer::run(
         fullnode_url.as_str(),
         &gas_pool_config,
-        MIST_PER_SUI,
+        target_init_balance,
         keypair.clone(),
     )
     .await;

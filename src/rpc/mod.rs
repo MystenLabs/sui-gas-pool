@@ -20,7 +20,8 @@ mod tests {
     #[tokio::test]
     async fn test_basic_rpc_flow() {
         let (test_cluster, _container, server) =
-            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10]).await;
+            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI)
+                .await;
         let client = server.get_local_client();
         client.check_health().await.unwrap();
 
@@ -47,7 +48,8 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_auth() {
         let (_test_cluster, _container, server) =
-            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10]).await;
+            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI)
+                .await;
 
         let client = server.get_local_client();
         client.check_health().await.unwrap();
