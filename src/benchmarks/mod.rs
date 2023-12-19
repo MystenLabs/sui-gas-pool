@@ -6,13 +6,15 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use sui_types::gas_coin::MIST_PER_SUI;
 use tokio::time::{interval, Duration};
-use tracing::info;
 
 pub async fn benchmark_reserve_only() {
-    info!("Setting up gas station...");
-    let (_test_cluster, _container, server) =
-        GasStationServer::start_rpc_server_for_testing(vec![1000000 * MIST_PER_SUI; 1]).await;
-    info!("Gas station is ready");
+    println!("Setting up gas station...");
+    let (_test_cluster, _container, server) = GasStationServer::start_rpc_server_for_testing(
+        vec![100000 * MIST_PER_SUI; 1],
+        MIST_PER_SUI / 10,
+    )
+    .await;
+    println!("Gas station is ready");
     let mut handles = vec![];
     let num_requesets = Arc::new(AtomicU64::new(0));
     for _ in 0..1 {
