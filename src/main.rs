@@ -11,7 +11,7 @@ async fn main() {
     let command = Command::parse();
     let metric_address = command
         .get_metrics_port()
-        .map(|port| SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port));
+        .map(|port| SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port));
     let prometheus_registry = if let Some(metric_address) = metric_address {
         let registry_service = mysten_metrics::start_prometheus_server(metric_address);
         let prometheus_registry = registry_service.default_registry();

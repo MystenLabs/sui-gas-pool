@@ -9,7 +9,7 @@ use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 
 pub const DEFAULT_RPC_PORT: u16 = 9527;
-pub const LOCALHOST: Ipv4Addr = Ipv4Addr::LOCALHOST;
+pub const LOCALHOST: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
