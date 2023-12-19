@@ -1,14 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::gas_station::gas_station_core::{GasStation, GasStationContainer};
+use crate::gas_station::gas_station_core::GasStation;
 use crate::metrics::GasStationMetrics;
+use crate::read_auth_env;
 use crate::rpc::client::GasStationRpcClient;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
-use crate::test_env::start_gas_station;
-use crate::{read_auth_env, AUTH_ENV_NAME};
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
@@ -16,14 +15,12 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router, TypedHeader};
 use fastcrypto::encoding::Base64;
-use fastcrypto::traits::ToFromBytes;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
+use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
-use test_cluster::TestCluster;
 use tokio::task::JoinHandle;
 use tracing::{debug, info};
 
@@ -60,24 +57,6 @@ impl GasStationServer {
 
     pub fn get_local_client(&self) -> GasStationRpcClient {
         GasStationRpcClient::new(format!("http://localhost:{}", self.rpc_port))
-    }
-
-    pub async fn start_rpc_server_for_testing(
-        init_gas_amounts: Vec<u64>,
-        target_init_balance: u64,
-    ) -> (TestCluster, GasStationContainer, GasStationServer) {
-        let (test_cluster, container) =
-            start_gas_station(init_gas_amounts, target_init_balance).await;
-        let localhost = localhost_for_testing();
-        std::env::set_var(AUTH_ENV_NAME, "some secret");
-        let server = GasStationServer::new(
-            container.get_station(),
-            localhost.parse().unwrap(),
-            get_available_port(&localhost),
-            GasStationMetrics::new_for_testing(),
-        )
-        .await;
-        (test_cluster, container, server)
     }
 }
 

@@ -5,7 +5,10 @@ use crate::config::GasStationConfig;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
 use crate::metrics::GasStationMetrics;
+use crate::rpc::GasStationServer;
+use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
+use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
 use sui_types::base_types::{ObjectRef, SuiAddress};
 use sui_types::crypto::get_account_key_pair;
@@ -15,7 +18,6 @@ use sui_types::transaction::{TransactionData, TransactionDataAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, GasStationConfig) {
-    std::env::set_var("RPC_QUERY_MAX_RESULT_LIMIT", "3000");
     let (sponsor, keypair) = get_account_key_pair();
     let cluster = TestClusterBuilder::new()
         .with_accounts(vec![
@@ -67,6 +69,23 @@ pub async fn start_gas_station(
     )
     .await;
     (test_cluster, station)
+}
+
+pub async fn start_rpc_server_for_testing(
+    init_gas_amounts: Vec<u64>,
+    target_init_balance: u64,
+) -> (TestCluster, GasStationContainer, GasStationServer) {
+    let (test_cluster, container) = start_gas_station(init_gas_amounts, target_init_balance).await;
+    let localhost = localhost_for_testing();
+    std::env::set_var(AUTH_ENV_NAME, "some secret");
+    let server = GasStationServer::new(
+        container.get_station(),
+        localhost.parse().unwrap(),
+        get_available_port(&localhost),
+        GasStationMetrics::new_for_testing(),
+    )
+    .await;
+    (test_cluster, container, server)
 }
 
 pub async fn create_test_transaction(

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::benchmarks::benchmark_reserve_only;
+use crate::benchmarks::run_benchmark;
 use crate::config::{GasPoolStorageConfig, GasStationConfig};
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::gas_station::gas_station_core::GasStationContainer;
@@ -57,9 +57,18 @@ pub enum Command {
         #[arg(long, help = "RPC port to listen on for storage requests")]
         rpc_port: u16,
     },
-    /// Running benchmark locally. This only works in release build.
+    /// Running benchmark. This will continue reserving gas coins on the gas station for some
+    /// seconds, which would automatically expire latter.
     #[clap(name = "benchmark")]
-    Benchmark { mode: BenchmarkMode },
+    Benchmark {
+        #[arg(long, help = "Full URL to the gas station RPC server")]
+        gas_station_url: String,
+        #[arg(
+            long,
+            help = "Average duration for each reservation, in number of seconds."
+        )]
+        reserve_duration_sec: u64,
+    },
     /// Generate a sample config file and put it in the specified path.
     #[clap(name = "generate-sample-config")]
     GenerateSampleConfig {
@@ -151,12 +160,15 @@ impl Command {
                 let server = RocksDbServer::new(storage, ip, rpc_port).await;
                 server.handle.await.unwrap();
             }
-            Command::Benchmark { mode: _ } => {
+            Command::Benchmark {
+                gas_station_url,
+                reserve_duration_sec,
+            } => {
                 assert!(
                     cfg!(not(debug_assertions)),
                     "Benchmark should only run in release build"
                 );
-                benchmark_reserve_only().await
+                run_benchmark(gas_station_url, reserve_duration_sec).await
             }
             Command::GenerateSampleConfig { config_path } => {
                 let config = GasStationConfig {
