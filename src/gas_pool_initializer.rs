@@ -6,7 +6,6 @@ use crate::storage::{connect_storage, Storage};
 use crate::sui_client::SuiClient;
 use crate::types::GasCoin;
 use parking_lot::Mutex;
-use shared_crypto::intent::Intent;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::sync::atomic::AtomicUsize;
@@ -91,11 +90,7 @@ impl CoinSplitEnv {
             budget,
             rgp,
         );
-        let tx = Transaction::from_data_and_signer(
-            tx,
-            Intent::sui_transaction(),
-            vec![self.keypair.as_ref()],
-        );
+        let tx = Transaction::from_data_and_signer(tx, vec![self.keypair.as_ref()]);
         debug!(
             "Sending transaction for execution. Tx digest: {:?}",
             tx.digest()

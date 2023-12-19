@@ -11,6 +11,7 @@ pub mod metrics;
 pub mod rpc;
 pub mod storage;
 pub mod sui_client;
+#[cfg(test)]
 pub mod test_env;
 pub mod types;
 

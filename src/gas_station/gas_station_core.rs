@@ -175,14 +175,9 @@ impl GasStation {
             .num_released_gas_coins
             .inc_by(payment.len() as u64);
 
-        // TODO: Remove clone once we have a better Transaction construction API.
-        let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
+        let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
         let sponsor_sig = Signature::new_secure(&intent_msg, keypair);
-        let tx = Transaction::from_generic_sig_data(
-            tx_data,
-            Intent::sui_transaction(),
-            vec![sponsor_sig.into(), user_sig],
-        );
+        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig.into(), user_sig]);
         let response = self
             .sui_client
             .execute_transaction(tx, Duration::from_secs(60))

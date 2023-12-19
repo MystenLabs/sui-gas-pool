@@ -10,8 +10,7 @@ pub use server::GasStationServer;
 #[cfg(test)]
 mod tests {
     use crate::rpc::rpc_types::ExecuteTxRequest;
-    use crate::rpc::GasStationServer;
-    use crate::test_env::create_test_transaction;
+    use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
     use crate::AUTH_ENV_NAME;
     use fastcrypto::encoding::Base64;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
@@ -20,8 +19,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_rpc_flow() {
         let (test_cluster, _container, server) =
-            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI)
-                .await;
+            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let client = server.get_local_client();
         client.check_health().await.unwrap();
 
@@ -48,8 +46,7 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_auth() {
         let (_test_cluster, _container, server) =
-            GasStationServer::start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI)
-                .await;
+            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
 
         let client = server.get_local_client();
         client.check_health().await.unwrap();

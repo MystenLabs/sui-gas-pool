@@ -59,7 +59,7 @@ impl RocksDBStorageTables {
     pub fn open(parent_path: &Path) -> Self {
         Self::open_tables_read_write(
             Self::path(parent_path),
-            MetricConf::with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
+            MetricConf::default().with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
             None,
             None,
         )
