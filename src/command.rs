@@ -46,6 +46,12 @@ pub enum Command {
     StartStation {
         #[arg(long, help = "Path to config file")]
         config_path: PathBuf,
+        #[arg(
+            long,
+            help = "RPC port to listen on for prometheus metrics",
+            default_value_t = 9184
+        )]
+        metrics_port: u16,
     },
     /// Start a local gas station instance.
     #[clap(name = "start-storage-server")]
@@ -56,6 +62,12 @@ pub enum Command {
         ip: Ipv4Addr,
         #[arg(long, help = "RPC port to listen on for storage requests")]
         rpc_port: u16,
+        #[arg(
+            long,
+            help = "RPC port to listen on for prometheus metrics",
+            default_value_t = 9184
+        )]
+        metrics_port: u16,
     },
     /// Running benchmark. This will continue reserving gas coins on the gas station for some
     /// seconds, which would automatically expire latter.
@@ -100,7 +112,14 @@ pub enum CliCommand {
 }
 
 impl Command {
-    pub async fn execute(self, prometheus_registry: Registry) {
+    pub fn get_metrics_port(&self) -> Option<u16> {
+        match self {
+            Command::StartStorage { metrics_port, .. }
+            | Command::StartStation { metrics_port, .. } => Some(*metrics_port),
+            _ => None,
+        }
+    }
+    pub async fn execute(self, prometheus_registry: Option<Registry>) {
         match self {
             Command::Init {
                 config_path,
@@ -123,8 +142,11 @@ impl Command {
                 )
                 .await;
             }
-            Command::StartStation { config_path } => {
-                let station_metrics = GasStationMetrics::new(&prometheus_registry);
+            Command::StartStation {
+                config_path,
+                metrics_port: _,
+            } => {
+                let station_metrics = GasStationMetrics::new(prometheus_registry.as_ref().unwrap());
                 let config: GasStationConfig = GasStationConfig::load(config_path).unwrap();
                 info!("Config: {:?}", config);
                 let GasStationConfig {
@@ -154,8 +176,9 @@ impl Command {
                 db_path,
                 ip,
                 rpc_port,
+                metrics_port: _,
             } => {
-                let metrics = StoragePoolMetrics::new(&prometheus_registry);
+                let metrics = StoragePoolMetrics::new(prometheus_registry.as_ref().unwrap());
                 let storage = Arc::new(RocksDBStorage::new(db_path.as_path(), metrics));
                 let server = RocksDbServer::new(storage, ip, rpc_port).await;
                 server.handle.await.unwrap();
