@@ -2,37 +2,60 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::rpc::client::GasStationRpcClient;
-use std::sync::atomic::AtomicU64;
+use parking_lot::RwLock;
 use std::sync::Arc;
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, Duration, Instant};
 
-pub async fn run_benchmark(gas_station_url: String, reserve_duration_sec: u64) {
+#[derive(Clone, Default)]
+struct BenchmarkStatsPerSecond {
+    pub num_requests: u64,
+    pub total_latency: u128,
+    pub num_errors: u64,
+}
+
+pub async fn run_benchmark(gas_station_url: String, reserve_duration_sec: u64, num_clients: u64) {
     let mut handles = vec![];
-    let num_requests = Arc::new(AtomicU64::new(0));
-    for _ in 0..10 {
+    let stats = Arc::new(RwLock::new(BenchmarkStatsPerSecond::default()));
+    for _ in 0..num_clients {
         let client = GasStationRpcClient::new(gas_station_url.clone());
-        let num_requesets = num_requests.clone();
+        let stats = stats.clone();
         let handle = tokio::spawn(async move {
             loop {
+                let now = Instant::now();
                 let result = client.reserve_gas(1, None, reserve_duration_sec).await;
-                if result.is_ok() {
-                    num_requesets.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let mut stats_guard = stats.write();
+                match result {
+                    Ok(_) => {
+                        stats_guard.num_requests += 1;
+                        stats_guard.total_latency += now.elapsed().as_millis();
+                    }
+                    Err(_) => {
+                        stats_guard.num_errors += 1;
+                    }
                 }
             }
         });
         handles.push(handle);
     }
     let handle = tokio::spawn(async move {
+        let mut prev_stats = stats.read().clone();
         let mut interval = interval(Duration::from_secs(1));
-        let mut prev_num_requests = num_requests.load(std::sync::atomic::Ordering::Relaxed);
         loop {
             interval.tick().await;
-            let current_num_requests = num_requests.load(std::sync::atomic::Ordering::SeqCst);
+            let cur_stats = stats.read().clone();
+            let request_per_second = cur_stats.num_requests - prev_stats.num_requests;
             println!(
-                "Requests per second: {}",
-                current_num_requests - prev_num_requests
+                "Requests per second: {}, errors per second: {}, average latency: {}ms",
+                request_per_second,
+                cur_stats.num_errors - prev_stats.num_errors,
+                if request_per_second == 0 {
+                    0
+                } else {
+                    (cur_stats.total_latency - prev_stats.total_latency)
+                        / request_per_second as u128
+                }
             );
-            prev_num_requests = current_num_requests;
+            prev_stats = cur_stats;
         }
     });
     handle.await.unwrap();

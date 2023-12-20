@@ -77,9 +77,16 @@ pub enum Command {
         gas_station_url: String,
         #[arg(
             long,
-            help = "Average duration for each reservation, in number of seconds."
+            help = "Average duration for each reservation, in number of seconds.",
+            default_value_t = 1
         )]
         reserve_duration_sec: u64,
+        #[arg(
+            long,
+            help = "Number of clients to spawn to send requests to servers.",
+            default_value_t = 100
+        )]
+        num_clients: u64,
     },
     /// Generate a sample config file and put it in the specified path.
     #[clap(name = "generate-sample-config")]
@@ -186,12 +193,13 @@ impl Command {
             Command::Benchmark {
                 gas_station_url,
                 reserve_duration_sec,
+                num_clients,
             } => {
                 assert!(
                     cfg!(not(debug_assertions)),
                     "Benchmark should only run in release build"
                 );
-                run_benchmark(gas_station_url, reserve_duration_sec).await
+                run_benchmark(gas_station_url, reserve_duration_sec, num_clients).await
             }
             Command::GenerateSampleConfig { config_path } => {
                 let config = GasStationConfig {
