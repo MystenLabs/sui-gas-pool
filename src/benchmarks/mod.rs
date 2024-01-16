@@ -16,8 +16,9 @@ struct BenchmarkStatsPerSecond {
 pub async fn run_benchmark(gas_station_url: String, reserve_duration_sec: u64, num_clients: u64) {
     let mut handles = vec![];
     let stats = Arc::new(RwLock::new(BenchmarkStatsPerSecond::default()));
+    let client = GasStationRpcClient::new(gas_station_url);
     for _ in 0..num_clients {
-        let client = GasStationRpcClient::new(gas_station_url.clone());
+        let client = client.clone();
         let stats = stats.clone();
         let handle = tokio::spawn(async move {
             loop {
