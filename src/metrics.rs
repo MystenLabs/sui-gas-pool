@@ -41,6 +41,8 @@ pub struct GasStationMetrics {
     pub num_released_gas_coins: IntCounter,
     pub reserved_duration_upon_release: Histogram,
     pub num_gas_coins_smashed: IntCounter,
+
+    pub num_invariant_violations: IntCounter,
 }
 
 impl GasStationMetrics {
@@ -153,6 +155,12 @@ impl GasStationMetrics {
             num_gas_coins_smashed: register_int_counter_with_registry!(
                 "num_gas_coins_smashed",
                 "Total number of gas coins smashed during transaction execution",
+                registry,
+            )
+            .unwrap(),
+            num_invariant_violations: register_int_counter_with_registry!(
+                "num_invariant_violations",
+                "Total number of invariant violations. This should really never trigger",
                 registry,
             )
             .unwrap(),

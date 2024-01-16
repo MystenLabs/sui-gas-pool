@@ -160,20 +160,23 @@ impl Command {
                     gas_pool_config,
                     fullnode_url,
                     keypair,
-                    ..
+                    local_db_path,
+                    rpc_host_ip,
+                    rpc_port,
                 } = config;
                 let container = GasStationContainer::new(
                     Arc::new(keypair),
                     connect_storage(&gas_pool_config).await,
                     &fullnode_url,
                     station_metrics.clone(),
+                    local_db_path,
                 )
                 .await;
 
                 let server = GasStationServer::new(
                     container.get_station(),
-                    config.rpc_host_ip,
-                    config.rpc_port,
+                    rpc_host_ip,
+                    rpc_port,
                     station_metrics,
                 )
                 .await;

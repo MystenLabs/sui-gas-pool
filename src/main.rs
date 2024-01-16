@@ -24,7 +24,7 @@ async fn main() {
         .with_log_level("off,sui_gas_station=info")
         .with_env();
     if let Some(prometheus_registry) = &prometheus_registry {
-        config = config.with_prom_registry(&prometheus_registry);
+        config = config.with_prom_registry(prometheus_registry);
     }
     let _guard = config.init();
     if let Some(metric_address) = metric_address {
