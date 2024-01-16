@@ -10,6 +10,7 @@ use reqwest::Client;
 use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
+#[derive(Clone)]
 pub struct GasStationRpcClient {
     client: Client,
     server_address: String,
