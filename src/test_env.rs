@@ -51,6 +51,7 @@ pub async fn start_gas_station(
         keypair,
         gas_pool_config,
         fullnode_url,
+        local_db_path,
         ..
     } = config;
     let keypair = Arc::new(keypair);
@@ -66,6 +67,7 @@ pub async fn start_gas_station(
         storage,
         fullnode_url.as_str(),
         GasStationMetrics::new_for_testing(),
+        local_db_path,
     )
     .await;
     (test_cluster, station)

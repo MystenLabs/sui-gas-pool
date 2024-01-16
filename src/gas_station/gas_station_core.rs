@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
+use crate::gas_station::locked_gas_coins::CoinLockInfo;
 use crate::gas_station::locked_gas_coins::LockedGasCoins;
 use crate::metrics::GasStationMetrics;
 use crate::retry_forever;
@@ -9,6 +11,7 @@ use crate::sui_client::SuiClient;
 use anyhow::bail;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffects;
@@ -138,6 +141,11 @@ impl GasStation {
             "Reserved gas coins with sponsor={:?}, budget={:?} and duration={:?}: {:?}",
             sponsor, gas_budget, duration, gas_coins
         );
+        if gas_coins.is_empty() {
+            // This should never happen as the gas pool should just return Error in that case.
+            // But we check it here just to be safe.
+            bail!("No gas coin available");
+        }
         self.metrics.num_successful_storage_pool_reservation.inc();
 
         self.locked_gas_coins
@@ -189,7 +197,13 @@ impl GasStation {
     }
 
     #[cfg(test)]
-    pub async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
+    pub fn get_locked_coins_and_check_consistency(&self) -> Vec<CoinLockInfo> {
+        self.locked_gas_coins
+            .get_locked_coins_and_check_consistency()
+    }
+
+    #[cfg(test)]
+    pub async fn query_pool_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
         self.gas_pool_store
             .get_available_coin_count(sponsor_address)
             .await
@@ -202,6 +216,7 @@ impl GasStationContainer {
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
         metrics: Arc<GasStationMetrics>,
+        local_db_path: PathBuf,
     ) -> Self {
         let sui_client = SuiClient::new(fullnode_url).await;
         let sponsor = (&keypair.public()).into();
@@ -210,7 +225,7 @@ impl GasStationContainer {
             keypairs,
             gas_pool_store,
             sui_client,
-            locked_gas_coins: LockedGasCoins::default(),
+            locked_gas_coins: LockedGasCoins::new(local_db_path, metrics.clone()),
             metrics,
         });
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
