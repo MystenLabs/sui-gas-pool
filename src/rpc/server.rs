@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::gas_station::gas_station_core::GasStation;
-use crate::metrics::GasStationMetrics;
+use crate::gas_pool::gas_pool_core::GasPool;
+use crate::metrics::GasPoolMetrics;
 use crate::read_auth_env;
-use crate::rpc::client::GasStationRpcClient;
+use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
@@ -24,19 +24,17 @@ use sui_types::transaction::TransactionData;
 use tokio::task::JoinHandle;
 use tracing::{debug, info};
 
-// TODO: Check what happens when client drops, and whether we need to persist the thread.
-
-pub struct GasStationServer {
+pub struct GasPoolServer {
     pub handle: JoinHandle<()>,
     pub rpc_port: u16,
 }
 
-impl GasStationServer {
+impl GasPoolServer {
     pub async fn new(
-        station: Arc<GasStation>,
+        station: Arc<GasPool>,
         host_ip: Ipv4Addr,
         rpc_port: u16,
-        metrics: Arc<GasStationMetrics>,
+        metrics: Arc<GasPoolMetrics>,
     ) -> Self {
         let state = ServerState::new(station, metrics);
         let app = Router::new()
@@ -55,20 +53,20 @@ impl GasStationServer {
         Self { handle, rpc_port }
     }
 
-    pub fn get_local_client(&self) -> GasStationRpcClient {
-        GasStationRpcClient::new(format!("http://localhost:{}", self.rpc_port))
+    pub fn get_local_client(&self) -> GasPoolRpcClient {
+        GasPoolRpcClient::new(format!("http://localhost:{}", self.rpc_port))
     }
 }
 
 #[derive(Clone)]
 struct ServerState {
-    gas_station: Arc<GasStation>,
+    gas_station: Arc<GasPool>,
     secret: Arc<String>,
-    metrics: Arc<GasStationMetrics>,
+    metrics: Arc<GasPoolMetrics>,
 }
 
 impl ServerState {
-    fn new(gas_station: Arc<GasStation>, metrics: Arc<GasStationMetrics>) -> Self {
+    fn new(gas_station: Arc<GasPool>, metrics: Arc<GasPoolMetrics>) -> Self {
         let secret = Arc::new(read_auth_env());
         Self {
             gas_station,

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::GasStationConfig;
+use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
-use crate::gas_station::gas_station_core::GasStationContainer;
-use crate::metrics::GasStationMetrics;
-use crate::rpc::GasStationServer;
+use crate::metrics::GasPoolMetrics;
+use crate::rpc::GasPoolServer;
 use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
@@ -45,7 +45,7 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, GasS
 pub async fn start_gas_station(
     init_gas_amounts: Vec<u64>,
     target_init_balance: u64,
-) -> (TestCluster, GasStationContainer) {
+) -> (TestCluster, GasPoolContainer) {
     let (test_cluster, config) = start_sui_cluster(init_gas_amounts).await;
     let GasStationConfig {
         keypair,
@@ -62,11 +62,11 @@ pub async fn start_gas_station(
         keypair.clone(),
     )
     .await;
-    let station = GasStationContainer::new(
+    let station = GasPoolContainer::new(
         keypair,
         storage,
         fullnode_url.as_str(),
-        GasStationMetrics::new_for_testing(),
+        GasPoolMetrics::new_for_testing(),
         local_db_path,
     )
     .await;
@@ -76,15 +76,15 @@ pub async fn start_gas_station(
 pub async fn start_rpc_server_for_testing(
     init_gas_amounts: Vec<u64>,
     target_init_balance: u64,
-) -> (TestCluster, GasStationContainer, GasStationServer) {
+) -> (TestCluster, GasPoolContainer, GasPoolServer) {
     let (test_cluster, container) = start_gas_station(init_gas_amounts, target_init_balance).await;
     let localhost = localhost_for_testing();
     std::env::set_var(AUTH_ENV_NAME, "some secret");
-    let server = GasStationServer::new(
-        container.get_station(),
+    let server = GasPoolServer::new(
+        container.get_gas_pool_arc(),
         localhost.parse().unwrap(),
         get_available_port(&localhost),
-        GasStationMetrics::new_for_testing(),
+        GasPoolMetrics::new_for_testing(),
     )
     .await;
     (test_cluster, container, server)

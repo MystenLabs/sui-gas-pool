@@ -5,7 +5,7 @@ pub mod client;
 mod rpc_types;
 mod server;
 
-pub use server::GasStationServer;
+pub use server::GasPoolServer;
 
 #[cfg(test)]
 mod tests {
