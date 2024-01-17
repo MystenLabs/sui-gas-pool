@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(test)]
-use crate::gas_station::locked_gas_coins::CoinLockInfo;
-use crate::gas_station::locked_gas_coins::LockedGasCoins;
-use crate::metrics::GasStationMetrics;
+use crate::gas_pool::locked_gas_coins::CoinLockInfo;
+use crate::gas_pool::locked_gas_coins::LockedGasCoins;
+use crate::metrics::GasPoolMetrics;
 use crate::retry_forever;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
@@ -29,21 +29,21 @@ use tracing::{debug, error, info};
 
 // TODO: Add crash recovery using a persistent storage.
 
-pub struct GasStationContainer {
-    inner: Arc<GasStation>,
+pub struct GasPoolContainer {
+    inner: Arc<GasPool>,
     _coin_unlocker_task: JoinHandle<()>,
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
-pub struct GasStation {
+pub struct GasPool {
     keypairs: HashMap<SuiAddress, Arc<SuiKeyPair>>,
     gas_pool_store: Arc<dyn Storage>,
     sui_client: SuiClient,
     locked_gas_coins: LockedGasCoins,
-    metrics: Arc<GasStationMetrics>,
+    metrics: Arc<GasPoolMetrics>,
 }
 
-impl GasStation {
+impl GasPool {
     async fn start_coin_unlock_task(
         self: Arc<Self>,
         mut cancel_receiver: tokio::sync::oneshot::Receiver<()>,
@@ -210,18 +210,18 @@ impl GasStation {
     }
 }
 
-impl GasStationContainer {
+impl GasPoolContainer {
     pub async fn new(
         keypair: Arc<SuiKeyPair>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
-        metrics: Arc<GasStationMetrics>,
+        metrics: Arc<GasPoolMetrics>,
         local_db_path: PathBuf,
     ) -> Self {
         let sui_client = SuiClient::new(fullnode_url).await;
         let sponsor = (&keypair.public()).into();
         let keypairs = HashMap::from([(sponsor, keypair)]);
-        let inner = Arc::new(GasStation {
+        let inner = Arc::new(GasPool {
             keypairs,
             gas_pool_store,
             sui_client,
@@ -237,12 +237,12 @@ impl GasStationContainer {
         }
     }
 
-    pub fn get_station(&self) -> Arc<GasStation> {
+    pub fn get_gas_pool_arc(&self) -> Arc<GasPool> {
         self.inner.clone()
     }
 }
 
-impl Drop for GasStationContainer {
+impl Drop for GasPoolContainer {
     fn drop(&mut self) {
         self.cancel_sender.take().unwrap().send(()).unwrap();
     }

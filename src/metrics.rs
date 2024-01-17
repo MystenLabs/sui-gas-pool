@@ -8,7 +8,7 @@ use prometheus::{
 };
 use std::sync::Arc;
 
-pub struct GasStationMetrics {
+pub struct GasPoolMetrics {
     // === RPC Server Metrics ===
     // RPC metrics for the reserve_gas endpoint
     pub num_total_reserve_gas_requests: IntCounter,
@@ -45,7 +45,7 @@ pub struct GasStationMetrics {
     pub num_invariant_violations: IntCounter,
 }
 
-impl GasStationMetrics {
+impl GasPoolMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         Arc::new(Self {
             num_total_reserve_gas_requests: register_int_counter_with_registry!(

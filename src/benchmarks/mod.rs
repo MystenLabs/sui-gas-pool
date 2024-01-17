@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::rpc::client::GasStationRpcClient;
+use crate::rpc::client::GasPoolRpcClient;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tokio::time::{interval, Duration, Instant};
@@ -16,7 +16,7 @@ struct BenchmarkStatsPerSecond {
 pub async fn run_benchmark(gas_station_url: String, reserve_duration_sec: u64, num_clients: u64) {
     let mut handles = vec![];
     let stats = Arc::new(RwLock::new(BenchmarkStatsPerSecond::default()));
-    let client = GasStationRpcClient::new(gas_station_url);
+    let client = GasPoolRpcClient::new(gas_station_url);
     for _ in 0..num_clients {
         let client = client.clone();
         let stats = stats.clone();

@@ -11,12 +11,12 @@ use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
 #[derive(Clone)]
-pub struct GasStationRpcClient {
+pub struct GasPoolRpcClient {
     client: Client,
     server_address: String,
 }
 
-impl GasStationRpcClient {
+impl GasPoolRpcClient {
     pub fn new(server_address: String) -> Self {
         let client = Client::new();
         Self {

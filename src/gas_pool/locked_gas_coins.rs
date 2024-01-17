@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::gas_station::gas_station_db::GasStationStore;
-use crate::metrics::GasStationMetrics;
+use crate::gas_pool::gas_pool_db::GasPoolStore;
+use crate::metrics::GasPoolMetrics;
 use crate::types::GasCoin;
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
@@ -19,7 +19,7 @@ use tracing::debug;
 pub struct LockedGasCoins {
     // TODO: The mutex can be sharded among sponsor addresses.
     mutex: Mutex<LockedGasCoinsInner>,
-    persisted_store: GasStationStore,
+    persisted_store: GasPoolStore,
 }
 
 #[derive(Default)]
@@ -135,9 +135,9 @@ impl LockedGasCoinsInner {
 }
 
 impl LockedGasCoins {
-    pub fn new(local_db_path: PathBuf, metrics: Arc<GasStationMetrics>) -> Self {
+    pub fn new(local_db_path: PathBuf, metrics: Arc<GasPoolMetrics>) -> Self {
         let mut inner = LockedGasCoinsInner::default();
-        let persisted_store = GasStationStore::new(&local_db_path, metrics);
+        let persisted_store = GasPoolStore::new(&local_db_path, metrics);
         let recovered_locked_coins = persisted_store.get_all_locked_gas_coins_during_init();
         debug!("Recovered locked coins: {:?}", recovered_locked_coins);
         for lock_info in recovered_locked_coins {

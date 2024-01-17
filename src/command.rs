@@ -3,11 +3,11 @@
 
 use crate::benchmarks::run_benchmark;
 use crate::config::{GasPoolStorageConfig, GasStationConfig};
+use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
-use crate::gas_station::gas_station_core::GasStationContainer;
-use crate::metrics::{GasStationMetrics, StoragePoolMetrics};
-use crate::rpc::client::GasStationRpcClient;
-use crate::rpc::GasStationServer;
+use crate::metrics::{GasPoolMetrics, StoragePoolMetrics};
+use crate::rpc::client::GasPoolRpcClient;
+use crate::rpc::GasPoolServer;
 use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
 use crate::storage::rocksdb::RocksDBStorage;
@@ -153,7 +153,7 @@ impl Command {
                 config_path,
                 metrics_port: _,
             } => {
-                let station_metrics = GasStationMetrics::new(prometheus_registry.as_ref().unwrap());
+                let station_metrics = GasPoolMetrics::new(prometheus_registry.as_ref().unwrap());
                 let config: GasStationConfig = GasStationConfig::load(config_path).unwrap();
                 info!("Config: {:?}", config);
                 let GasStationConfig {
@@ -164,7 +164,7 @@ impl Command {
                     rpc_host_ip,
                     rpc_port,
                 } = config;
-                let container = GasStationContainer::new(
+                let container = GasPoolContainer::new(
                     Arc::new(keypair),
                     connect_storage(&gas_pool_config).await,
                     &fullnode_url,
@@ -173,8 +173,8 @@ impl Command {
                 )
                 .await;
 
-                let server = GasStationServer::new(
-                    container.get_station(),
+                let server = GasPoolServer::new(
+                    container.get_gas_pool_arc(),
                     rpc_host_ip,
                     rpc_port,
                     station_metrics,
@@ -221,7 +221,7 @@ impl Command {
                     println!("Storage server is healthy");
                 }
                 CliCommand::CheckStationHealth { station_rpc_url } => {
-                    let station_client = GasStationRpcClient::new(station_rpc_url);
+                    let station_client = GasPoolRpcClient::new(station_rpc_url);
                     station_client.check_health().await.unwrap();
                     println!("Station server is healthy");
                 }

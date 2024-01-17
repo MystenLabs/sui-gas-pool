@@ -1,16 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod gas_station_core;
-mod gas_station_db;
+pub mod gas_pool_core;
+mod gas_pool_db;
 mod locked_gas_coins;
 
 #[cfg(test)]
 mod tests {
     use crate::config::GasStationConfig;
+    use crate::gas_pool::gas_pool_core::GasPoolContainer;
     use crate::gas_pool_initializer::GasPoolInitializer;
-    use crate::gas_station::gas_station_core::GasStationContainer;
-    use crate::metrics::GasStationMetrics;
+    use crate::metrics::GasPoolMetrics;
     use crate::test_env::{create_test_transaction, start_gas_station, start_sui_cluster};
     use std::sync::Arc;
     use std::time::Duration;
@@ -22,7 +22,7 @@ mod tests {
     async fn test_station_reserve_gas() {
         let (_test_cluster, container) =
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
-        let station = container.get_station();
+        let station = container.get_gas_pool_arc();
         let (sponsor1, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
@@ -45,7 +45,7 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_gas_station_flow() {
         let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
-        let station = container.get_station();
+        let station = container.get_gas_pool_arc();
         assert!(station
             .reserve_gas(None, MIST_PER_SUI + 1, Duration::from_secs(10))
             .await
@@ -74,7 +74,7 @@ mod tests {
     #[tokio::test]
     async fn test_coin_expiration() {
         let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
-        let station = container.get_station();
+        let station = container.get_gas_pool_arc();
         let (sponsor, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI, Duration::from_secs(1))
             .await
@@ -103,7 +103,7 @@ mod tests {
     async fn test_incomplete_gas_usage() {
         let (test_cluster, container) =
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
-        let station = container.get_station();
+        let station = container.get_gas_pool_arc();
         let (sponsor, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
@@ -133,7 +133,7 @@ mod tests {
     async fn test_mixed_up_gas_coins() {
         let (test_cluster, container) =
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
-        let station = container.get_station();
+        let station = container.get_gas_pool_arc();
         let (sponsor, gas_coins1) = station
             .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
@@ -183,16 +183,16 @@ mod tests {
         .await;
 
         {
-            let container = GasStationContainer::new(
+            let container = GasPoolContainer::new(
                 keypair.clone(),
                 storage.clone(),
                 fullnode_url.as_str(),
-                GasStationMetrics::new_for_testing(),
+                GasPoolMetrics::new_for_testing(),
                 local_db_path.clone(),
             )
             .await;
 
-            let station = container.get_station();
+            let station = container.get_gas_pool_arc();
             let (_sponsor, gas_coins) = station
                 .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(5))
                 .await
@@ -207,16 +207,16 @@ mod tests {
         // Drop the station so we can restart it.
 
         {
-            let container = GasStationContainer::new(
+            let container = GasPoolContainer::new(
                 keypair.clone(),
                 storage.clone(),
                 fullnode_url.as_str(),
-                GasStationMetrics::new_for_testing(),
+                GasPoolMetrics::new_for_testing(),
                 local_db_path.clone(),
             )
             .await;
             let locked_gas = container
-                .get_station()
+                .get_gas_pool_arc()
                 .get_locked_coins_and_check_consistency();
             assert_eq!(locked_gas.len(), 2);
             assert_eq!(
@@ -227,16 +227,16 @@ mod tests {
         }
         // Drop the station and restart it again.
 
-        let container = GasStationContainer::new(
+        let container = GasPoolContainer::new(
             keypair,
             storage,
             fullnode_url.as_str(),
-            GasStationMetrics::new_for_testing(),
+            GasPoolMetrics::new_for_testing(),
             local_db_path,
         )
         .await;
         let locked_gas = container
-            .get_station()
+            .get_gas_pool_arc()
             .get_locked_coins_and_check_consistency();
         assert!(locked_gas.is_empty());
     }

@@ -1,8 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::gas_station::locked_gas_coins::CoinLockInfo;
-use crate::metrics::GasStationMetrics;
+use crate::gas_pool::locked_gas_coins::CoinLockInfo;
+use crate::metrics::GasPoolMetrics;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,15 +14,15 @@ use typed_store::traits::TypedStoreDebug;
 use typed_store::Map;
 use typed_store_derive::DBMapUtils;
 
-pub struct GasStationStore {
-    tables: GasStationDbTables,
-    metrics: Arc<GasStationMetrics>,
+pub struct GasPoolStore {
+    tables: GasPoolDbTables,
+    metrics: Arc<GasPoolMetrics>,
 }
 
-impl GasStationStore {
-    pub fn new(parent_path: &Path, metrics: Arc<GasStationMetrics>) -> Self {
+impl GasPoolStore {
+    pub fn new(parent_path: &Path, metrics: Arc<GasPoolMetrics>) -> Self {
         Self {
-            tables: GasStationDbTables::open(parent_path),
+            tables: GasPoolDbTables::open(parent_path),
             metrics,
         }
     }
@@ -61,13 +61,13 @@ impl GasStationStore {
 }
 
 #[derive(DBMapUtils)]
-struct GasStationDbTables {
+struct GasPoolDbTables {
     /// A persisted table that stores all the CoinLockInfo. To avoid storing the same CoinLockInfo,
     /// we use the first ObjectID in the CoinLockInfo as the key for adding and removal.
     locked_gas_coins: DBMap<ObjectID, CoinLockInfo>,
 }
 
-impl GasStationDbTables {
+impl GasPoolDbTables {
     pub fn path(parent_path: &Path) -> PathBuf {
         parent_path.join("gas_pool")
     }
