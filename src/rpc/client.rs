@@ -5,6 +5,7 @@ use crate::read_auth_env;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
+use crate::types::ReservationID;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::Client;
 use sui_json_rpc_types::SuiTransactionBlockEffects;
@@ -40,7 +41,7 @@ impl GasPoolRpcClient {
         gas_budget: u64,
         request_sponsor: Option<SuiAddress>,
         reserve_duration_secs: u64,
-    ) -> anyhow::Result<(SuiAddress, Vec<ObjectRef>)> {
+    ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         let request = ReserveGasRequest {
             gas_budget,
             request_sponsor,
@@ -61,16 +62,21 @@ impl GasPoolRpcClient {
             .json::<ReserveGasResponse>()
             .await?;
         response
-            .gas_coins
+            .result
             .ok_or_else(|| {
                 anyhow::anyhow!(response
                     .error
                     .unwrap_or_else(|| "Unknown error".to_string()))
             })
-            .map(|(sponsor, coins)| {
+            .map(|result| {
                 (
-                    sponsor,
-                    coins.into_iter().map(|c| c.to_object_ref()).collect(),
+                    result.sponsor_address,
+                    result.reservation_id,
+                    result
+                        .gas_coins
+                        .into_iter()
+                        .map(|c| c.to_object_ref())
+                        .collect(),
                 )
             })
     }

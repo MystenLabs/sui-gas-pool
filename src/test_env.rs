@@ -3,7 +3,7 @@
 
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
-use crate::metrics::GasPoolMetrics;
+use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
 use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage_for_testing;
 use crate::AUTH_ENV_NAME;
@@ -55,7 +55,7 @@ pub async fn start_gas_station(
         storage,
         fullnode_url.as_str(),
         true,
-        GasPoolMetrics::new_for_testing(),
+        GasPoolCoreMetrics::new_for_testing(),
     )
     .await;
     (test_cluster, station)
@@ -72,7 +72,7 @@ pub async fn start_rpc_server_for_testing(
         container.get_gas_pool_arc(),
         localhost.parse().unwrap(),
         get_available_port(&localhost),
-        GasPoolMetrics::new_for_testing(),
+        GasPoolRpcMetrics::new_for_testing(),
     )
     .await;
     (test_cluster, container, server)

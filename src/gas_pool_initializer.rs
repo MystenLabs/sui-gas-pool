@@ -211,16 +211,18 @@ mod tests {
     async fn test_basic_init_flow() {
         telemetry_subscribers::init_for_testing();
         let (cluster, keypair) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
+        let sponsor = (&keypair.public()).into();
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing().await;
         GasPoolInitializer::run(fullnode_url.as_str(), &storage, MIST_PER_SUI, keypair).await;
-        assert!(storage.get_available_coin_count().await > 900);
+        assert!(storage.get_available_coin_count(sponsor).await > 900);
     }
 
     #[tokio::test]
     async fn test_init_non_even_split() {
         telemetry_subscribers::init_for_testing();
         let (cluster, keypair) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
+        let sponsor = (&keypair.public()).into();
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing().await;
         let target_init_coin_balance = 12345 * MIST_PER_SUI;
@@ -231,6 +233,6 @@ mod tests {
             keypair,
         )
         .await;
-        assert!(storage.get_available_coin_count().await > 800);
+        assert!(storage.get_available_coin_count(sponsor).await > 800);
     }
 }

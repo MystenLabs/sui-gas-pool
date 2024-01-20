@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::types::ReservationID;
 use fastcrypto::encoding::Base64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,21 +17,36 @@ pub struct ReserveGasRequest {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ReserveGasResponse {
-    pub gas_coins: Option<(SuiAddress, Vec<SuiObjectRef>)>,
+    pub result: Option<ReserveGasResult>,
     pub error: Option<String>,
 }
 
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+pub struct ReserveGasResult {
+    pub sponsor_address: SuiAddress,
+    pub reservation_id: ReservationID,
+    pub gas_coins: Vec<SuiObjectRef>,
+}
+
 impl ReserveGasResponse {
-    pub fn new_ok(sponsor: SuiAddress, gas_coins: Vec<ObjectRef>) -> Self {
+    pub fn new_ok(
+        sponsor_address: SuiAddress,
+        reservation_id: ReservationID,
+        gas_coins: Vec<ObjectRef>,
+    ) -> Self {
         Self {
-            gas_coins: Some((sponsor, gas_coins.into_iter().map(|c| c.into()).collect())),
+            result: Some(ReserveGasResult {
+                sponsor_address,
+                reservation_id,
+                gas_coins: gas_coins.into_iter().map(|c| c.into()).collect(),
+            }),
             error: None,
         }
     }
 
     pub fn new_err(error: anyhow::Error) -> Self {
         Self {
-            gas_coins: None,
+            result: None,
             error: Some(error.to_string()),
         }
     }
@@ -38,6 +54,7 @@ impl ReserveGasResponse {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ExecuteTxRequest {
+    pub reservation_id: ReservationID,
     pub tx_bytes: Base64,
     pub user_sig: Base64,
 }

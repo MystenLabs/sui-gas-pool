@@ -23,7 +23,8 @@ mod tests {
         let client = server.get_local_client();
         client.check_health().await.unwrap();
 
-        let (sponsor, gas_coins) = client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
+        let (sponsor, reservation_id, gas_coins) =
+            client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
         assert_eq!(gas_coins.len(), 1);
 
         // We can no longer request all balance given one is loaned out above.
@@ -35,6 +36,7 @@ mod tests {
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         let effects = client
             .execute_tx(ExecuteTxRequest {
+                reservation_id,
                 tx_bytes: Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()),
                 user_sig: Base64::from_bytes(user_sig.as_ref()),
             })
@@ -51,7 +53,8 @@ mod tests {
         let client = server.get_local_client();
         client.check_health().await.unwrap();
 
-        let (_sponsor, gas_coins) = client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
+        let (_sponsor, _res_id, gas_coins) =
+            client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
         assert_eq!(gas_coins.len(), 1);
 
         // Change the auth secret used in the client.
