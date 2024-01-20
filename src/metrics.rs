@@ -3,10 +3,12 @@
 
 use mysten_metrics::histogram::Histogram;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntCounter,
+    IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
 use std::sync::Arc;
+use tracing::error;
 
 pub struct GasPoolMetrics {
     // === RPC Server Metrics ===
@@ -42,7 +44,7 @@ pub struct GasPoolMetrics {
     pub reserved_duration_upon_release: Histogram,
     pub num_gas_coins_smashed: IntCounter,
 
-    pub num_invariant_violations: IntCounter,
+    pub num_gas_pool_invariant_violations: IntCounter,
 }
 
 impl GasPoolMetrics {
@@ -158,9 +160,9 @@ impl GasPoolMetrics {
                 registry,
             )
             .unwrap(),
-            num_invariant_violations: register_int_counter_with_registry!(
-                "num_invariant_violations",
-                "Total number of invariant violations. This should really never trigger",
+            num_gas_pool_invariant_violations: register_int_counter_with_registry!(
+                "num_gas_pool_invariant_violations",
+                "Total number of invariant violations in the gas pool. This should really never trigger",
                 registry,
             )
             .unwrap(),
@@ -170,84 +172,103 @@ impl GasPoolMetrics {
     pub fn new_for_testing() -> Arc<Self> {
         Self::new(&Registry::new())
     }
+
+    pub fn invariant_violation<T: Into<String>>(&self, msg: T) {
+        if cfg!(debug_assertions) {
+            panic!("Invariant violation: {}", msg.into());
+        } else {
+            error!("Invariant violation: {}", msg.into());
+        }
+        self.num_gas_pool_invariant_violations.inc();
+    }
 }
 
 pub struct StoragePoolMetrics {
-    // === RPC Server Metrics
-    // RPC metrics for the reserve_gas_coins endpoint
-    pub num_total_storage_reserve_gas_coins_requests: IntCounter,
-    pub num_authorized_storage_reserve_gas_coins_requests: IntCounter,
-    pub num_successful_storage_reserve_gas_coins_requests: IntCounter,
-
-    // RPC metrics for the update_gas_coins endpoint
-    pub num_total_storage_update_gas_coins_requests: IntCounter,
-    pub num_authorized_storage_update_gas_coins_requests: IntCounter,
-    pub num_successful_storage_update_gas_coins_requests: IntCounter,
+    // TODO: Add more metrics on storage request, newly added APIs and etc
 
     // === Storage Pool Metrics
-    pub cur_num_available_gas_coins: IntGauge,
-    pub cur_total_available_gas_balance: IntGauge,
-    pub cur_num_reserved_gas_coins: IntGauge,
+    pub num_total_storage_reserve_gas_coins_requests: IntCounterVec,
+    pub num_successful_storage_reserve_gas_coins_requests: IntCounterVec,
+    pub num_total_storage_update_gas_coins_requests: IntCounterVec,
+    pub num_successful_storage_update_gas_coins_requests: IntCounterVec,
+
+    pub cur_num_available_gas_coins: IntGaugeVec,
+    pub cur_total_available_gas_balance: IntGaugeVec,
+    pub cur_num_reserved_gas_coins: IntGaugeVec,
+
+    pub num_storage_invariant_violations: IntCounter,
 }
 
 impl StoragePoolMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         Arc::new(Self {
-            cur_num_available_gas_coins: register_int_gauge_with_registry!(
+            cur_num_available_gas_coins: register_int_gauge_vec_with_registry!(
                 "cur_num_available_gas_coins",
                 "Current number of available gas coins",
+                &["address"],
                 registry,
             )
             .unwrap(),
-            cur_total_available_gas_balance: register_int_gauge_with_registry!(
+            cur_total_available_gas_balance: register_int_gauge_vec_with_registry!(
                 "cur_total_available_gas_balance",
                 "Current total available gas coin balance",
+                &["address"],
                 registry,
             )
             .unwrap(),
-            cur_num_reserved_gas_coins: register_int_gauge_with_registry!(
+            cur_num_reserved_gas_coins: register_int_gauge_vec_with_registry!(
                 "cur_num_reserved_gas_coins",
                 "Current number of reserved gas coins",
+                &["address"],
                 registry,
             )
             .unwrap(),
-            num_total_storage_reserve_gas_coins_requests: register_int_counter_with_registry!(
+            num_total_storage_reserve_gas_coins_requests: register_int_counter_vec_with_registry!(
                 "num_total_storage_reserve_gas_coins_requests",
-                "Total number of storage pool reserve_gas_coins RPC requests received",
+                "Total number of storage pool reserve_gas_coins requests received",
+                &["address"],
                 registry,
             )
             .unwrap(),
-            num_authorized_storage_reserve_gas_coins_requests: register_int_counter_with_registry!(
-                "num_authorized_storage_reserve_gas_coins_requests",
-                "Total number of storage pool reserve_gas_coins RPC requests that provided the correct auth token",
-                registry,
-            )
-            .unwrap(),
-            num_successful_storage_reserve_gas_coins_requests: register_int_counter_with_registry!(
-                "num_successful_storage_reserve_gas_coins_requests",
-                "Total number of storage pool reserve_gas_coins RPC requests that were successful",
-                registry,
-            )
-            .unwrap(),
-            num_total_storage_update_gas_coins_requests: register_int_counter_with_registry!(
+            num_successful_storage_reserve_gas_coins_requests:
+                register_int_counter_vec_with_registry!(
+                    "num_successful_storage_reserve_gas_coins_requests",
+                    "Total number of storage pool reserve_gas_coins requests that were successful",
+                    &["address"],
+                    registry,
+                )
+                .unwrap(),
+            num_total_storage_update_gas_coins_requests: register_int_counter_vec_with_registry!(
                 "num_total_storage_update_gas_coins_requests",
-                "Total number of storage pool update_gas_coins RPC requests received",
+                "Total number of storage pool update_gas_coins requests received",
+                &["address"],
                 registry,
             )
             .unwrap(),
-            num_authorized_storage_update_gas_coins_requests: register_int_counter_with_registry!(
-                "num_authorized_storage_update_gas_coins_requests",
-                "Total number of storage pool update_gas_coins RPC requests that provided the correct auth token",
-                registry,
-            )
-            .unwrap(),
-            num_successful_storage_update_gas_coins_requests: register_int_counter_with_registry!(
-                "num_successful_storage_update_gas_coins_requests",
-                "Total number of storage pool update_gas_coins RPC requests that were successful",
+            num_successful_storage_update_gas_coins_requests:
+                register_int_counter_vec_with_registry!(
+                    "num_successful_storage_update_gas_coins_requests",
+                    "Total number of storage pool update_gas_coins requests that were successful",
+                    &["address"],
+                    registry,
+                )
+                .unwrap(),
+            num_storage_invariant_violations: register_int_counter_with_registry!(
+                "num_storage_invariant_violations",
+                "Total number of invariant violations in the storage. This should really never trigger",
                 registry,
             )
             .unwrap(),
         })
+    }
+
+    pub fn invariant_violation<T: Into<String>>(&self, msg: T) {
+        if cfg!(debug_assertions) {
+            panic!("Invariant violation: {}", msg.into());
+        } else {
+            error!("Invariant violation: {}", msg.into());
+        }
+        self.num_storage_invariant_violations.inc();
     }
 
     pub fn new_for_testing() -> Arc<Self> {

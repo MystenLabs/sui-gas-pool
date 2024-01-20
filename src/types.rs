@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::bail;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use sui_json_rpc_types::SuiObjectRef;
-use sui_types::base_types::ObjectRef;
+use sui_types::base_types::{ObjectID, ObjectRef};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GasCoin {
@@ -33,5 +35,51 @@ impl From<SuiGasCoin> for GasCoin {
             object_ref: gas_coin.object_ref.to_object_ref(),
             balance: gas_coin.balance,
         }
+    }
+}
+
+pub type ExpirationTimeMs = u64;
+pub type GasGroupKey = ObjectID;
+
+#[derive(Clone, Default, Debug)]
+pub struct UpdatedGasGroup {
+    pub updated_gas_coins: Vec<GasCoin>,
+    pub deleted_gas_coins: Vec<ObjectID>,
+}
+
+impl UpdatedGasGroup {
+    pub fn new(updated_gas_coins: Vec<GasCoin>, deleted_gas_coins: Vec<ObjectID>) -> Self {
+        Self {
+            updated_gas_coins,
+            deleted_gas_coins,
+        }
+    }
+    pub fn get_group_key(&self) -> anyhow::Result<GasGroupKey> {
+        let all_ids: BTreeSet<_> = self
+            .updated_gas_coins
+            .iter()
+            .map(|coin| &coin.object_ref.0)
+            .chain(&self.deleted_gas_coins)
+            .collect();
+        if all_ids.is_empty() {
+            bail!("Gas group is empty");
+        }
+        if all_ids.len() != self.updated_gas_coins.len() + self.deleted_gas_coins.len() {
+            bail!("Gas group contains duplicate ids");
+        }
+        // unwrap safe since we checked that it's not empty.
+        Ok(*all_ids.into_iter().next().unwrap())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReservedGasGroup {
+    pub objects: BTreeSet<ObjectID>,
+    pub expiration_time: ExpirationTimeMs,
+}
+
+impl ReservedGasGroup {
+    pub fn get_key(&self) -> GasGroupKey {
+        *self.objects.iter().next().unwrap()
     }
 }

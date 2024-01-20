@@ -8,13 +8,9 @@ use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolMetrics, StoragePoolMetrics};
 use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::GasPoolServer;
-use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
-use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
-use crate::storage::rocksdb::RocksDBStorage;
-use crate::storage::{connect_storage, Storage};
+use crate::storage::connect_storage;
 use clap::*;
 use prometheus::Registry;
-use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use sui_config::Config;
@@ -27,20 +23,6 @@ use tracing::info;
     rename_all = "kebab-case"
 )]
 pub enum Command {
-    /// Initialize the gas pool. This command should be called only and exactly once globally.
-    /// It looks at all the gas coins currently owned by the provided sponsor address, split them into
-    /// smaller gas coins with target balance, and initialize the gas pool with these coins.
-    /// This need to run before we run any gas station.
-    #[clap(name = "init")]
-    Init {
-        #[arg(long, help = "Path to config file")]
-        config_path: PathBuf,
-        #[arg(
-            long,
-            help = "The initial per-coin balance we want to split into, in MIST"
-        )]
-        target_init_coin_balance: u64,
-    },
     /// Start a local gas station instance listening on RPC.
     #[clap(name = "start-station-server")]
     StartStation {
@@ -52,22 +34,13 @@ pub enum Command {
             default_value_t = 9184
         )]
         metrics_port: u16,
-    },
-    /// Start a local gas station instance.
-    #[clap(name = "start-storage-server")]
-    StartStorage {
-        #[arg(long, help = "Path to the storage")]
-        db_path: PathBuf,
-        #[arg(long, help = "IP address to listen on for storage requests")]
-        ip: Ipv4Addr,
-        #[arg(long, help = "RPC port to listen on for storage requests")]
-        rpc_port: u16,
         #[arg(
             long,
-            help = "RPC port to listen on for prometheus metrics",
-            default_value_t = 9184
+            help = "Run the gas pool initialization process. This should only run once globally for each \
+            address, and it will take some time to finish.It looks at all the gas coins currently owned by the provided sponsor address, split them into
+            smaller gas coins with target balance, and initialize the gas pool with these coins."
         )]
-        metrics_port: u16,
+        force_initialize_gas_pool: bool,
     },
     /// Running benchmark. This will continue reserving gas coins on the gas station for some
     /// seconds, which would automatically expire latter.
@@ -108,10 +81,6 @@ pub enum BenchmarkMode {
 
 #[derive(Subcommand)]
 pub enum CliCommand {
-    CheckStorageHealth {
-        #[clap(long, help = "Full URL of the storage RPC server")]
-        storage_rpc_url: String,
-    },
     CheckStationHealth {
         #[clap(long, help = "Full URL of the station RPC server")]
         station_rpc_url: String,
@@ -121,55 +90,49 @@ pub enum CliCommand {
 impl Command {
     pub fn get_metrics_port(&self) -> Option<u16> {
         match self {
-            Command::StartStorage { metrics_port, .. }
-            | Command::StartStation { metrics_port, .. } => Some(*metrics_port),
+            Command::StartStation { metrics_port, .. } => Some(*metrics_port),
             _ => None,
         }
     }
     pub async fn execute(self, prometheus_registry: Option<Registry>) {
         match self {
-            Command::Init {
-                config_path,
-                target_init_coin_balance,
-            } => {
-                let config = GasStationConfig::load(&config_path).unwrap();
-                info!("Config: {:?}", config);
-                let GasStationConfig {
-                    keypair,
-                    gas_pool_config,
-                    fullnode_url,
-                    ..
-                } = config;
-                let keypair = Arc::new(keypair);
-                GasPoolInitializer::run(
-                    fullnode_url.as_str(),
-                    &gas_pool_config,
-                    target_init_coin_balance,
-                    keypair,
-                )
-                .await;
-            }
             Command::StartStation {
                 config_path,
                 metrics_port: _,
+                force_initialize_gas_pool,
             } => {
-                let station_metrics = GasPoolMetrics::new(prometheus_registry.as_ref().unwrap());
                 let config: GasStationConfig = GasStationConfig::load(config_path).unwrap();
                 info!("Config: {:?}", config);
                 let GasStationConfig {
                     gas_pool_config,
                     fullnode_url,
                     keypair,
-                    local_db_path,
                     rpc_host_ip,
                     rpc_port,
+                    target_init_coin_balance,
+                    run_coin_expiring_task,
                 } = config;
+                let keypair = Arc::new(keypair);
+                let storage_metrics =
+                    StoragePoolMetrics::new(prometheus_registry.as_ref().unwrap());
+                let storage = connect_storage(&gas_pool_config, storage_metrics).await;
+                if force_initialize_gas_pool {
+                    GasPoolInitializer::run(
+                        fullnode_url.as_str(),
+                        &storage,
+                        target_init_coin_balance,
+                        keypair.clone(),
+                    )
+                    .await;
+                }
+
+                let station_metrics = GasPoolMetrics::new(prometheus_registry.as_ref().unwrap());
                 let container = GasPoolContainer::new(
-                    Arc::new(keypair),
-                    connect_storage(&gas_pool_config).await,
+                    keypair,
+                    storage,
                     &fullnode_url,
+                    run_coin_expiring_task,
                     station_metrics.clone(),
-                    local_db_path,
                 )
                 .await;
 
@@ -180,17 +143,6 @@ impl Command {
                     station_metrics,
                 )
                 .await;
-                server.handle.await.unwrap();
-            }
-            Command::StartStorage {
-                db_path,
-                ip,
-                rpc_port,
-                metrics_port: _,
-            } => {
-                let metrics = StoragePoolMetrics::new(prometheus_registry.as_ref().unwrap());
-                let storage = Arc::new(RocksDBStorage::new(db_path.as_path(), metrics));
-                let server = RocksDbServer::new(storage, ip, rpc_port).await;
                 server.handle.await.unwrap();
             }
             Command::Benchmark {
@@ -206,20 +158,14 @@ impl Command {
             }
             Command::GenerateSampleConfig { config_path } => {
                 let config = GasStationConfig {
-                    gas_pool_config: GasPoolStorageConfig::RemoteRocksDb {
-                        db_rpc_url: "http://localhost:9528".to_string(),
+                    gas_pool_config: GasPoolStorageConfig {
+                        db_path: PathBuf::from("gas_pool_db"),
                     },
-                    local_db_path: PathBuf::from("local_db"),
                     ..Default::default()
                 };
                 config.save(config_path).unwrap();
             }
             Command::CLI { cli_command } => match cli_command {
-                CliCommand::CheckStorageHealth { storage_rpc_url } => {
-                    let storage_client = RocksDbRpcClient::new(storage_rpc_url);
-                    storage_client.check_health().await.unwrap();
-                    println!("Storage server is healthy");
-                }
                 CliCommand::CheckStationHealth { station_rpc_url } => {
                     let station_client = GasPoolRpcClient::new(station_rpc_url);
                     station_client.check_health().await.unwrap();

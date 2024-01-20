@@ -1,23 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::GasStationConfig;
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::GasPoolMetrics;
 use crate::rpc::GasPoolServer;
+use crate::storage::connect_storage_for_testing;
 use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
 use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::get_account_key_pair;
+use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{TransactionData, TransactionDataAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, GasStationConfig) {
+pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<SuiKeyPair>) {
     let (sponsor, keypair) = get_account_key_pair();
     let cluster = TestClusterBuilder::new()
         .with_accounts(vec![
@@ -33,32 +33,20 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, GasS
         ])
         .build()
         .await;
-    let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
-    let config = GasStationConfig {
-        keypair: keypair.into(),
-        fullnode_url,
-        ..Default::default()
-    };
-    (cluster, config)
+    (cluster, Arc::new(keypair.into()))
 }
 
 pub async fn start_gas_station(
     init_gas_amounts: Vec<u64>,
-    target_init_balance: u64,
+    target_init_coin_balance: u64,
 ) -> (TestCluster, GasPoolContainer) {
-    let (test_cluster, config) = start_sui_cluster(init_gas_amounts).await;
-    let GasStationConfig {
-        keypair,
-        gas_pool_config,
-        fullnode_url,
-        local_db_path,
-        ..
-    } = config;
-    let keypair = Arc::new(keypair);
-    let storage = GasPoolInitializer::run(
+    let (test_cluster, keypair) = start_sui_cluster(init_gas_amounts).await;
+    let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
+    let storage = connect_storage_for_testing().await;
+    GasPoolInitializer::run(
         fullnode_url.as_str(),
-        &gas_pool_config,
-        target_init_balance,
+        &storage,
+        target_init_coin_balance,
         keypair.clone(),
     )
     .await;
@@ -66,8 +54,8 @@ pub async fn start_gas_station(
         keypair,
         storage,
         fullnode_url.as_str(),
+        true,
         GasPoolMetrics::new_for_testing(),
-        local_db_path,
     )
     .await;
     (test_cluster, station)
