@@ -2,21 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod gas_pool_core;
-mod gas_pool_db;
-mod locked_gas_coins;
 
 #[cfg(test)]
 mod tests {
-    use crate::config::GasStationConfig;
-    use crate::gas_pool::gas_pool_core::GasPoolContainer;
-    use crate::gas_pool_initializer::GasPoolInitializer;
-    use crate::metrics::GasPoolMetrics;
-    use crate::test_env::{create_test_transaction, start_gas_station, start_sui_cluster};
-    use std::sync::Arc;
+    use crate::test_env::{create_test_transaction, start_gas_station};
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::gas_coin::MIST_PER_SUI;
-    use tokio::time;
 
     #[tokio::test]
     async fn test_station_reserve_gas() {
@@ -161,83 +153,5 @@ mod tests {
             .await
             .unwrap();
         assert!(effects.status().is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_crash_restart() {
-        let (_test_cluster, config) = start_sui_cluster(vec![MIST_PER_SUI; 10]).await;
-        let GasStationConfig {
-            keypair,
-            gas_pool_config,
-            fullnode_url,
-            local_db_path,
-            ..
-        } = config;
-        let keypair = Arc::new(keypair);
-        let storage = GasPoolInitializer::run(
-            fullnode_url.as_str(),
-            &gas_pool_config,
-            MIST_PER_SUI,
-            keypair.clone(),
-        )
-        .await;
-
-        {
-            let container = GasPoolContainer::new(
-                keypair.clone(),
-                storage.clone(),
-                fullnode_url.as_str(),
-                GasPoolMetrics::new_for_testing(),
-                local_db_path.clone(),
-            )
-            .await;
-
-            let station = container.get_gas_pool_arc();
-            let (_sponsor, gas_coins) = station
-                .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(5))
-                .await
-                .unwrap();
-            assert_eq!(gas_coins.len(), 3);
-            let (_, gas_coins2) = station
-                .reserve_gas(None, MIST_PER_SUI * 5, Duration::from_secs(5))
-                .await
-                .unwrap();
-            assert_eq!(gas_coins2.len(), 5);
-        }
-        // Drop the station so we can restart it.
-
-        {
-            let container = GasPoolContainer::new(
-                keypair.clone(),
-                storage.clone(),
-                fullnode_url.as_str(),
-                GasPoolMetrics::new_for_testing(),
-                local_db_path.clone(),
-            )
-            .await;
-            let locked_gas = container
-                .get_gas_pool_arc()
-                .get_locked_coins_and_check_consistency();
-            assert_eq!(locked_gas.len(), 2);
-            assert_eq!(
-                locked_gas[0].inner.objects.len() + locked_gas[1].inner.objects.len(),
-                8
-            );
-            time::sleep(Duration::from_secs(10)).await;
-        }
-        // Drop the station and restart it again.
-
-        let container = GasPoolContainer::new(
-            keypair,
-            storage,
-            fullnode_url.as_str(),
-            GasPoolMetrics::new_for_testing(),
-            local_db_path,
-        )
-        .await;
-        let locked_gas = container
-            .get_gas_pool_arc()
-            .get_locked_coins_and_check_consistency();
-        assert!(locked_gas.is_empty());
     }
 }

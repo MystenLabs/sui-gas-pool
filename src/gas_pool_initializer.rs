@@ -1,8 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::GasPoolStorageConfig;
-use crate::storage::{connect_storage, Storage};
+use crate::storage::Storage;
 use crate::sui_client::SuiClient;
 use crate::types::GasCoin;
 use parking_lot::Mutex;
@@ -82,7 +81,7 @@ impl CoinSplitEnv {
             vec![Argument::GasCoin, pure_arg],
         );
         let pt = pt_builder.finish();
-        let budget = self.gas_cost_per_object * split_count;
+        let budget = self.gas_cost_per_object * split_count as u64;
         let tx = TransactionData::new_programmable(
             self.sponsor_address,
             vec![coin.object_ref],
@@ -157,20 +156,19 @@ impl GasPoolInitializer {
 
     pub async fn run(
         fullnode_url: &str,
-        gas_pool_config: &GasPoolStorageConfig,
+        storage: &Arc<dyn Storage>,
         target_init_coin_balance: u64,
         keypair: Arc<SuiKeyPair>,
-    ) -> Arc<dyn Storage> {
+    ) {
         let start = Instant::now();
         let sui_client = SuiClient::new(fullnode_url).await;
-        let storage = connect_storage(gas_pool_config).await;
         let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
         let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));
         let rgp = sui_client.get_reference_gas_price().await;
         if coins.is_empty() {
             error!("The account doesn't own any gas coins");
-            return storage;
+            return;
         }
         let gas_cost_per_object = sui_client
             .calibrate_gas_cost_per_object(sponsor_address, &coins[0])
@@ -192,12 +190,11 @@ impl GasPoolInitializer {
         .await;
         for chunk in result.chunks(5000) {
             storage
-                .update_gas_coins(sponsor_address, chunk.to_vec(), vec![])
+                .add_new_coins(sponsor_address, chunk.to_vec())
                 .await
                 .unwrap();
         }
         println!("Pool initialization took {:?}s", start.elapsed().as_secs());
-        storage
     }
 }
 
@@ -205,6 +202,7 @@ impl GasPoolInitializer {
 mod tests {
     use crate::config::GasStationConfig;
     use crate::gas_pool_initializer::GasPoolInitializer;
+    use crate::storage::connect_storage_for_testing_with_config;
     use crate::test_env::start_sui_cluster;
     use std::sync::Arc;
     use sui_types::gas_coin::MIST_PER_SUI;
@@ -223,13 +221,8 @@ mod tests {
         } = config;
         let sponsor = (&keypair.public()).into();
         let keypair = Arc::new(keypair);
-        let storage = GasPoolInitializer::run(
-            fullnode_url.as_str(),
-            &gas_pool_config,
-            MIST_PER_SUI,
-            keypair,
-        )
-        .await;
+        let storage = connect_storage_for_testing_with_config(&gas_pool_config).await;
+        GasPoolInitializer::run(fullnode_url.as_str(), &storage, MIST_PER_SUI, keypair).await;
         assert!(storage.get_available_coin_count(sponsor).await > 900);
     }
 
@@ -245,10 +238,11 @@ mod tests {
         } = config;
         let sponsor = (&keypair.public()).into();
         let keypair = Arc::new(keypair);
+        let storage = connect_storage_for_testing_with_config(&gas_pool_config).await;
         let target_init_coin_balance = 12345 * MIST_PER_SUI;
-        let storage = GasPoolInitializer::run(
+        GasPoolInitializer::run(
             fullnode_url.as_str(),
-            &gas_pool_config,
+            &storage,
             target_init_coin_balance,
             keypair,
         )

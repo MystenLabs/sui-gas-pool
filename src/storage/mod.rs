@@ -3,9 +3,9 @@
 
 use crate::config::GasPoolStorageConfig;
 use crate::metrics::StoragePoolMetrics;
-use crate::storage::rocksdb::rocksdb_rpc_client::RocksDbRpcClient;
 use crate::storage::rocksdb::RocksDBStorage;
-use crate::types::GasCoin;
+use crate::types::{GasCoin, UpdatedGasGroup};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use sui_types::base_types::{ObjectID, SuiAddress};
 
@@ -29,7 +29,14 @@ pub trait Storage: Sync + Send {
         &self,
         sponsor_address: SuiAddress,
         target_budget: u64,
+        reserved_duration_ms: u64,
     ) -> anyhow::Result<Vec<GasCoin>>;
+
+    async fn read_for_execution(
+        &self,
+        sponsor_address: SuiAddress,
+        gas_coins: BTreeSet<ObjectID>,
+    ) -> anyhow::Result<()>;
 
     /// Release reserved gas coins.
     /// \released_gas_coins contain previously reserved coins that are now released.
@@ -44,9 +51,22 @@ pub trait Storage: Sync + Send {
     async fn update_gas_coins(
         &self,
         sponsor_address: SuiAddress,
-        released_gas_coins: Vec<GasCoin>,
-        deleted_gas_coins: Vec<ObjectID>,
+        updated_gas_coins: Vec<UpdatedGasGroup>,
     ) -> anyhow::Result<()>;
+
+    async fn add_new_coins(
+        &self,
+        sponsor_address: SuiAddress,
+        new_coins: Vec<GasCoin>,
+    ) -> anyhow::Result<()>;
+
+    async fn expire_coins(
+        &self,
+        sponsor_address: SuiAddress,
+    ) -> anyhow::Result<Vec<BTreeSet<ObjectID>>>;
+
+    /// Whether the storage has been initialized for the specified address.
+    async fn initialized(&self, sponsor_address: SuiAddress) -> anyhow::Result<bool>;
 
     async fn check_health(&self) -> anyhow::Result<()>;
 
@@ -59,19 +79,17 @@ pub trait Storage: Sync + Send {
     #[cfg(test)]
     async fn get_reserved_coin_count(&self) -> usize;
 
+    #[cfg(test)]
+    async fn get_pending_update_coin_count(&self) -> usize;
+
     // TODO: Add APIs to support collecting coins that were forgotten to be released.
 }
 
-pub async fn connect_storage(config: &GasPoolStorageConfig) -> Arc<dyn Storage> {
-    let storage: Arc<dyn Storage> = match config {
-        GasPoolStorageConfig::LocalRocksDbForTesting { db_path } => Arc::new(RocksDBStorage::new(
-            db_path,
-            StoragePoolMetrics::new_for_testing(),
-        )),
-        GasPoolStorageConfig::RemoteRocksDb { db_rpc_url } => {
-            Arc::new(RocksDbRpcClient::new(db_rpc_url.clone()))
-        }
-    };
+pub async fn connect_storage(
+    config: &GasPoolStorageConfig,
+    metrics: Arc<StoragePoolMetrics>,
+) -> Arc<dyn Storage> {
+    let storage: Arc<dyn Storage> = Arc::new(RocksDBStorage::new(&config.db_path, metrics));
     storage
         .check_health()
         .await
@@ -80,10 +98,21 @@ pub async fn connect_storage(config: &GasPoolStorageConfig) -> Arc<dyn Storage> 
 }
 
 #[cfg(test)]
+pub async fn connect_storage_for_testing_with_config(
+    config: &GasPoolStorageConfig,
+) -> Arc<dyn Storage> {
+    connect_storage(config, StoragePoolMetrics::new_for_testing()).await
+}
+
+#[cfg(test)]
+pub async fn connect_storage_for_testing() -> Arc<dyn Storage> {
+    connect_storage_for_testing_with_config(&GasPoolStorageConfig::default()).await
+}
+
+#[cfg(test)]
 mod tests {
-    use crate::storage::rocksdb::rocksdb_rpc_server::RocksDbServer;
-    use crate::storage::{Storage, MAX_GAS_PER_QUERY};
-    use crate::types::GasCoin;
+    use crate::storage::{connect_storage_for_testing, Storage, MAX_GAS_PER_QUERY};
+    use crate::types::{GasCoin, UpdatedGasGroup};
     use std::sync::Arc;
     use sui_types::base_types::{random_object_ref, SuiAddress};
 
@@ -101,18 +130,18 @@ mod tests {
     }
 
     async fn setup(init_balance: Vec<(SuiAddress, Vec<u64>)>) -> Arc<dyn Storage> {
-        let storage = RocksDbServer::start_storage_server_for_testing().await;
+        let storage = connect_storage_for_testing().await;
         for (sponsor, amounts) in init_balance {
             let gas_coins = amounts
                 .into_iter()
-                .map(|amount| GasCoin {
+                .map(|balance| GasCoin {
                     object_ref: random_object_ref(),
-                    balance: amount,
+                    balance,
                 })
                 .collect::<Vec<_>>();
             for chunk in gas_coins.chunks(5000) {
                 storage
-                    .update_gas_coins(sponsor, chunk.to_vec(), vec![])
+                    .add_new_coins(sponsor, chunk.to_vec())
                     .await
                     .unwrap();
             }
@@ -128,7 +157,10 @@ mod tests {
         assert_coin_count(sponsor, &storage, 100000, 0).await;
         let mut cur_available = 100000;
         for i in 1..=MAX_GAS_PER_QUERY {
-            let reserved_gas_coins = storage.reserve_gas_coins(sponsor, i as u64).await.unwrap();
+            let reserved_gas_coins = storage
+                .reserve_gas_coins(sponsor, i as u64, 1000)
+                .await
+                .unwrap();
             assert_eq!(reserved_gas_coins.len(), i);
             cur_available -= i;
         }
@@ -140,7 +172,7 @@ mod tests {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(vec![(sponsor, vec![1; MAX_GAS_PER_QUERY + 1])]).await;
         assert!(storage
-            .reserve_gas_coins(sponsor, (MAX_GAS_PER_QUERY + 1) as u64)
+            .reserve_gas_coins(sponsor, (MAX_GAS_PER_QUERY + 1) as u64, 1000)
             .await
             .is_err());
         assert_coin_count(sponsor, &storage, MAX_GAS_PER_QUERY + 1, 0).await;
@@ -150,7 +182,7 @@ mod tests {
     async fn test_insufficient_pool_budget() {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(vec![(sponsor, vec![1; 100])]).await;
-        assert!(storage.reserve_gas_coins(sponsor, 101).await.is_err());
+        assert!(storage.reserve_gas_coins(sponsor, 101, 1000).await.is_err());
         assert_coin_count(sponsor, &storage, 100, 0).await;
     }
 
@@ -161,11 +193,19 @@ mod tests {
         for _ in 0..100 {
             // Keep reserving and putting them back.
             // Should be able to repeat this process indefinitely if balance are not changed.
-            let reserved_gas_coins = storage.reserve_gas_coins(sponsor, 99).await.unwrap();
+            let reserved_gas_coins = storage.reserve_gas_coins(sponsor, 99, 1000).await.unwrap();
             assert_eq!(reserved_gas_coins.len(), 99);
             assert_coin_count(sponsor, &storage, 1, 99).await;
+            let ids = reserved_gas_coins
+                .iter()
+                .map(|coin| coin.object_ref.0)
+                .collect();
+            storage.read_for_execution(sponsor, ids).await.unwrap();
             storage
-                .update_gas_coins(sponsor, reserved_gas_coins, vec![])
+                .update_gas_coins(
+                    sponsor,
+                    vec![UpdatedGasGroup::new(reserved_gas_coins, vec![])],
+                )
                 .await
                 .unwrap();
             assert_coin_count(sponsor, &storage, 100, 0).await;
@@ -177,7 +217,8 @@ mod tests {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(vec![(sponsor, vec![1; 100])]).await;
         for _ in 0..10 {
-            let mut reserved_gas_coins = storage.reserve_gas_coins(sponsor, 10).await.unwrap();
+            let mut reserved_gas_coins =
+                storage.reserve_gas_coins(sponsor, 10, 1000).await.unwrap();
             assert_eq!(
                 reserved_gas_coins.iter().map(|c| c.balance).sum::<u64>(),
                 10
@@ -187,14 +228,22 @@ mod tests {
                     reserved_gas_coin.balance -= 1;
                 }
             }
+            let ids = reserved_gas_coins
+                .iter()
+                .map(|coin| coin.object_ref.0)
+                .collect();
+            storage.read_for_execution(sponsor, ids).await.unwrap();
             storage
-                .update_gas_coins(sponsor, reserved_gas_coins, vec![])
+                .update_gas_coins(
+                    sponsor,
+                    vec![UpdatedGasGroup::new(reserved_gas_coins, vec![])],
+                )
                 .await
                 .unwrap();
         }
         assert_coin_count(sponsor, &storage, 100, 0).await;
         assert_eq!(storage.get_total_available_coin_balance(sponsor).await, 0);
-        assert!(storage.reserve_gas_coins(sponsor, 1).await.is_err());
+        assert!(storage.reserve_gas_coins(sponsor, 1, 1000).await.is_err());
     }
 
     #[tokio::test]
@@ -210,7 +259,7 @@ mod tests {
         )
         .await;
         for sponsor in sponsors.iter() {
-            let gas_coins = storage.reserve_gas_coins(*sponsor, 50).await.unwrap();
+            let gas_coins = storage.reserve_gas_coins(*sponsor, 50, 1000).await.unwrap();
             assert_eq!(gas_coins.len(), 50);
         }
         for sponsor in sponsors.iter() {
@@ -223,11 +272,15 @@ mod tests {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(vec![(sponsor, vec![1; 100])]).await;
         assert!(storage
-            .reserve_gas_coins(SuiAddress::random_for_testing_only(), 1)
+            .reserve_gas_coins(SuiAddress::random_for_testing_only(), 1, 1000)
             .await
             .is_err());
         assert_eq!(
-            storage.reserve_gas_coins(sponsor, 1).await.unwrap().len(),
+            storage
+                .reserve_gas_coins(sponsor, 1, 1000)
+                .await
+                .unwrap()
+                .len(),
             1
         )
     }
@@ -236,14 +289,24 @@ mod tests {
     async fn test_deleted_objects() {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(vec![(sponsor, vec![1; 100])]).await;
-        let mut reserved_gas_coins = storage.reserve_gas_coins(sponsor, 100).await.unwrap();
+        let mut reserved_gas_coins = storage.reserve_gas_coins(sponsor, 100, 1000).await.unwrap();
         assert_eq!(reserved_gas_coins.len(), 100);
+
+        let ids = reserved_gas_coins
+            .iter()
+            .map(|coin| coin.object_ref.0)
+            .collect();
+        storage.read_for_execution(sponsor, ids).await.unwrap();
+
         let deleted_gas_coins = reserved_gas_coins
             .drain(0..50)
             .map(|c| c.object_ref.0)
             .collect::<Vec<_>>();
         storage
-            .update_gas_coins(sponsor, reserved_gas_coins, deleted_gas_coins)
+            .update_gas_coins(
+                sponsor,
+                vec![UpdatedGasGroup::new(reserved_gas_coins, deleted_gas_coins)],
+            )
             .await
             .unwrap();
         assert_coin_count(sponsor, &storage, 50, 0).await;
@@ -260,7 +323,8 @@ mod tests {
             handles.push(tokio::spawn(async move {
                 let mut reserved_gas_coins = vec![];
                 for _ in 0..100 {
-                    reserved_gas_coins.extend(storage.reserve_gas_coins(sponsor, 3).await.unwrap());
+                    let newly_reserved = storage.reserve_gas_coins(sponsor, 3, 1000).await.unwrap();
+                    reserved_gas_coins.extend(newly_reserved);
                 }
                 reserved_gas_coins
             }));

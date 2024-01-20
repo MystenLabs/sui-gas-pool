@@ -6,6 +6,7 @@ use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::GasPoolMetrics;
 use crate::rpc::GasPoolServer;
+use crate::storage::connect_storage_for_testing_with_config;
 use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
@@ -51,13 +52,13 @@ pub async fn start_gas_station(
         keypair,
         gas_pool_config,
         fullnode_url,
-        local_db_path,
         ..
     } = config;
     let keypair = Arc::new(keypair);
-    let storage = GasPoolInitializer::run(
+    let storage = connect_storage_for_testing_with_config(&gas_pool_config).await;
+    GasPoolInitializer::run(
         fullnode_url.as_str(),
-        &gas_pool_config,
+        &storage,
         target_init_balance,
         keypair.clone(),
     )
@@ -67,7 +68,6 @@ pub async fn start_gas_station(
         storage,
         fullnode_url.as_str(),
         GasPoolMetrics::new_for_testing(),
-        local_db_path,
     )
     .await;
     (test_cluster, station)
