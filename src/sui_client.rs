@@ -88,9 +88,10 @@ impl SuiClient {
 
     pub async fn get_latest_gas_objects(
         &self,
-        object_ids: impl Iterator<Item = ObjectID>,
+        object_ids: impl IntoIterator<Item = ObjectID>,
     ) -> HashMap<ObjectID, Option<GasCoin>> {
         let tasks: FuturesUnordered<_> = object_ids
+            .into_iter()
             .chunks(50)
             .into_iter()
             .map(|chunk| {

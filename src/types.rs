@@ -38,6 +38,7 @@ impl From<SuiGasCoin> for GasCoin {
     }
 }
 
+pub type ReservationID = u64;
 pub type ExpirationTimeMs = u64;
 pub type GasGroupKey = ObjectID;
 

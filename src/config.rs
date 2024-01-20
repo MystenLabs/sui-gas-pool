@@ -4,7 +4,6 @@
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::net::Ipv4Addr;
-use std::path::PathBuf;
 use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 
@@ -45,14 +44,14 @@ impl Default for GasStationConfig {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct GasPoolStorageConfig {
-    pub db_path: PathBuf,
+pub enum GasPoolStorageConfig {
+    Redis { redis_url: String },
 }
 
 impl Default for GasPoolStorageConfig {
     fn default() -> Self {
-        Self {
-            db_path: tempfile::tempdir().unwrap().into_path(),
+        Self::Redis {
+            redis_url: "redis://127.0.0.1/".to_string(),
         }
     }
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::gas_pool::gas_pool_core::GasPool;
-use crate::metrics::GasPoolMetrics;
+use crate::metrics::GasPoolRpcMetrics;
 use crate::read_auth_env;
 use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::rpc_types::{
@@ -34,7 +34,7 @@ impl GasPoolServer {
         station: Arc<GasPool>,
         host_ip: Ipv4Addr,
         rpc_port: u16,
-        metrics: Arc<GasPoolMetrics>,
+        metrics: Arc<GasPoolRpcMetrics>,
     ) -> Self {
         let state = ServerState::new(station, metrics);
         let app = Router::new()
@@ -62,11 +62,11 @@ impl GasPoolServer {
 struct ServerState {
     gas_station: Arc<GasPool>,
     secret: Arc<String>,
-    metrics: Arc<GasPoolMetrics>,
+    metrics: Arc<GasPoolRpcMetrics>,
 }
 
 impl ServerState {
-    fn new(gas_station: Arc<GasPool>, metrics: Arc<GasPoolMetrics>) -> Self {
+    fn new(gas_station: Arc<GasPool>, metrics: Arc<GasPoolRpcMetrics>) -> Self {
         let secret = Arc::new(read_auth_env());
         Self {
             gas_station,
@@ -86,7 +86,7 @@ async fn reserve_gas(
     Extension(server): Extension<ServerState>,
     Json(payload): Json<ReserveGasRequest>,
 ) -> impl IntoResponse {
-    server.metrics.num_total_reserve_gas_requests.inc();
+    server.metrics.num_reserve_gas_requests.inc();
     if authorization.token() != server.secret.as_str() {
         return (
             StatusCode::UNAUTHORIZED,
@@ -119,13 +119,9 @@ async fn reserve_gas(
         )
         .await
     {
-        Ok((sponsor, gas_coins)) => {
+        Ok((sponsor, reservation_id, gas_coins)) => {
             server.metrics.num_successful_reserve_gas_requests.inc();
-            server
-                .metrics
-                .reserved_gas_coin_count_per_request
-                .observe(gas_coins.len() as u64);
-            let response = ReserveGasResponse::new_ok(sponsor, gas_coins);
+            let response = ReserveGasResponse::new_ok(sponsor, reservation_id, gas_coins);
             (StatusCode::OK, Json(response))
         }
         Err(err) => (
@@ -140,7 +136,7 @@ async fn execute_tx(
     Extension(server): Extension<ServerState>,
     Json(payload): Json<ExecuteTxRequest>,
 ) -> impl IntoResponse {
-    server.metrics.num_total_execute_tx_requests.inc();
+    server.metrics.num_execute_tx_requests.inc();
     if authorization.token() != server.secret.as_ref() {
         return (
             StatusCode::UNAUTHORIZED,
@@ -151,7 +147,11 @@ async fn execute_tx(
     }
     server.metrics.num_authorized_execute_tx_requests.inc();
     debug!("Received v1 execute_tx request: {:?}", payload);
-    let ExecuteTxRequest { tx_bytes, user_sig } = payload;
+    let ExecuteTxRequest {
+        reservation_id,
+        tx_bytes,
+        user_sig,
+    } = payload;
     let Ok((tx_data, user_sig)) = convert_tx_and_sig(tx_bytes, user_sig) else {
         return (
             StatusCode::BAD_REQUEST,
@@ -163,7 +163,7 @@ async fn execute_tx(
     // TODO: Should we check user signature?
     match server
         .gas_station
-        .execute_transaction(tx_data, user_sig)
+        .execute_transaction(reservation_id, tx_data, user_sig)
         .await
     {
         Ok(effects) => {

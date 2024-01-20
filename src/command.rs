@@ -5,7 +5,7 @@ use crate::benchmarks::run_benchmark;
 use crate::config::{GasPoolStorageConfig, GasStationConfig};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
-use crate::metrics::{GasPoolMetrics, StoragePoolMetrics};
+use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics, StorageMetrics};
 use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage;
@@ -113,8 +113,7 @@ impl Command {
                     run_coin_expiring_task,
                 } = config;
                 let keypair = Arc::new(keypair);
-                let storage_metrics =
-                    StoragePoolMetrics::new(prometheus_registry.as_ref().unwrap());
+                let storage_metrics = StorageMetrics::new(prometheus_registry.as_ref().unwrap());
                 let storage = connect_storage(&gas_pool_config, storage_metrics).await;
                 if force_initialize_gas_pool {
                     GasPoolInitializer::run(
@@ -126,21 +125,22 @@ impl Command {
                     .await;
                 }
 
-                let station_metrics = GasPoolMetrics::new(prometheus_registry.as_ref().unwrap());
+                let core_metrics = GasPoolCoreMetrics::new(prometheus_registry.as_ref().unwrap());
                 let container = GasPoolContainer::new(
                     keypair,
                     storage,
                     &fullnode_url,
                     run_coin_expiring_task,
-                    station_metrics.clone(),
+                    core_metrics,
                 )
                 .await;
 
+                let rpc_metrics = GasPoolRpcMetrics::new(prometheus_registry.as_ref().unwrap());
                 let server = GasPoolServer::new(
                     container.get_gas_pool_arc(),
                     rpc_host_ip,
                     rpc_port,
-                    station_metrics,
+                    rpc_metrics,
                 )
                 .await;
                 server.handle.await.unwrap();
@@ -158,8 +158,8 @@ impl Command {
             }
             Command::GenerateSampleConfig { config_path } => {
                 let config = GasStationConfig {
-                    gas_pool_config: GasPoolStorageConfig {
-                        db_path: PathBuf::from("gas_pool_db"),
+                    gas_pool_config: GasPoolStorageConfig::Redis {
+                        redis_url: "redis:://127.0.0.1".to_string(),
                     },
                     ..Default::default()
                 };
