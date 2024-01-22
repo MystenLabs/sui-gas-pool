@@ -60,7 +60,7 @@ impl CoinSplitEnv {
         );
     }
 
-    async fn split_one_gas_coin(self, coin: GasCoin) -> Vec<GasCoin> {
+    async fn split_one_gas_coin(self, mut coin: GasCoin) -> Vec<GasCoin> {
         let rgp = self.rgp;
         let split_count = min(
             // Max number of object mutations per transaction is 2048.
@@ -71,40 +71,59 @@ impl CoinSplitEnv {
             "Evenly splitting coin {:?} into {} coins",
             coin, split_count
         );
-        let mut pt_builder = ProgrammableTransactionBuilder::new();
-        let pure_arg = pt_builder.pure(split_count).unwrap();
-        pt_builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
-            PAY_MODULE_NAME.into(),
-            PAY_SPLIT_N_FUNC_NAME.into(),
-            vec![GAS::type_tag()],
-            vec![Argument::GasCoin, pure_arg],
-        );
-        let pt = pt_builder.finish();
-        let budget = self.gas_cost_per_object * split_count as u64;
-        let tx = TransactionData::new_programmable(
-            self.sponsor_address,
-            vec![coin.object_ref],
-            pt,
-            budget,
-            rgp,
-        );
-        let tx = Transaction::from_data_and_signer(tx, vec![self.keypair.as_ref()]);
-        debug!(
-            "Sending transaction for execution. Tx digest: {:?}",
-            tx.digest()
-        );
-        let effects = self
-            .sui_client
-            .execute_transaction(tx.clone(), Duration::from_secs(10))
-            .await
-            .expect("Failed to execute transaction after retries, give up");
-        assert!(
-            effects.status().is_ok(),
-            "Transaction failed. This should never happen. Tx: {:?}, effects: {:?}",
-            tx,
-            effects
-        );
+        let budget = self.gas_cost_per_object * split_count;
+        let effects = loop {
+            let mut pt_builder = ProgrammableTransactionBuilder::new();
+            let pure_arg = pt_builder.pure(split_count).unwrap();
+            pt_builder.programmable_move_call(
+                SUI_FRAMEWORK_PACKAGE_ID,
+                PAY_MODULE_NAME.into(),
+                PAY_SPLIT_N_FUNC_NAME.into(),
+                vec![GAS::type_tag()],
+                vec![Argument::GasCoin, pure_arg],
+            );
+            let pt = pt_builder.finish();
+            let tx = TransactionData::new_programmable(
+                self.sponsor_address,
+                vec![coin.object_ref],
+                pt,
+                budget,
+                rgp,
+            );
+            let tx = Transaction::from_data_and_signer(tx, vec![self.keypair.as_ref()]);
+            debug!(
+                "Sending transaction for execution. Tx digest: {:?}",
+                tx.digest()
+            );
+            let result = self
+                .sui_client
+                .execute_transaction(tx.clone(), Duration::from_secs(3))
+                .await;
+            match result {
+                Ok(effects) => {
+                    assert!(
+                        effects.status().is_ok(),
+                        "Transaction failed. This should never happen. Tx: {:?}, effects: {:?}",
+                        tx,
+                        effects
+                    );
+                    break effects;
+                }
+                Err(e) => {
+                    error!("Failed to execute transaction: {:?}", e);
+                    coin = self
+                        .sui_client
+                        .get_latest_gas_objects([coin.object_ref.0])
+                        .await
+                        .into_iter()
+                        .next()
+                        .unwrap()
+                        .1
+                        .unwrap();
+                    continue;
+                }
+            }
+        };
         let mut result = vec![];
         let new_coin_balance = (coin.balance - budget) / split_count;
         for created in effects.created() {
