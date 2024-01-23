@@ -8,7 +8,12 @@ use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 
 pub const DEFAULT_RPC_PORT: u16 = 9527;
-pub const DEFAULT_METRICS_PORT: u16 = 9528;
+pub const DEFAULT_METRICS_PORT: u16 = 9184;
+
+// Use 127.0.0.1 for tests to avoid OS complaining about permissions.
+#[cfg(test)]
+pub const LOCALHOST: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+#[cfg(not(test))]
 pub const LOCALHOST: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 
 #[serde_as]
@@ -19,6 +24,7 @@ pub struct GasStationConfig {
     pub keypair: SuiKeyPair,
     pub rpc_host_ip: Ipv4Addr,
     pub rpc_port: u16,
+    pub metrics_port: u16,
     pub gas_pool_config: GasPoolStorageConfig,
     pub fullnode_url: String,
     pub run_coin_expiring_task: bool,
@@ -31,6 +37,7 @@ impl Default for GasStationConfig {
             keypair: keypair.into(),
             rpc_host_ip: LOCALHOST,
             rpc_port: DEFAULT_RPC_PORT,
+            metrics_port: DEFAULT_METRICS_PORT,
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
             run_coin_expiring_task: true,
