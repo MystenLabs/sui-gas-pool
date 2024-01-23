@@ -36,11 +36,11 @@ pub enum Command {
         metrics_port: u16,
         #[arg(
             long,
-            help = "Run the gas pool initialization process. This should only run once globally for each \
-            address, and it will take some time to finish.It looks at all the gas coins currently owned by the provided sponsor address, split them into
-            smaller gas coins with target balance, and initialize the gas pool with these coins."
+            help = "If specified, run the gas pool initialization process. This should only run once globally for each \
+            address, and it will take some time to finish. It looks at all the gas coins currently owned by the provided sponsor address, split them into
+            smaller gas coins with specified target balance, and initialize the gas pool with these coins."
         )]
-        force_initialize_gas_pool: bool,
+        force_init_gas_pool_target_balance: Option<u64>,
     },
     /// Running benchmark. This will continue reserving gas coins on the gas station for some
     /// seconds, which would automatically expire latter.
@@ -99,7 +99,7 @@ impl Command {
             Command::StartStation {
                 config_path,
                 metrics_port: _,
-                force_initialize_gas_pool,
+                force_init_gas_pool_target_balance,
             } => {
                 let config: GasStationConfig = GasStationConfig::load(config_path).unwrap();
                 info!("Config: {:?}", config);
@@ -109,13 +109,12 @@ impl Command {
                     keypair,
                     rpc_host_ip,
                     rpc_port,
-                    target_init_coin_balance,
                     run_coin_expiring_task,
                 } = config;
                 let keypair = Arc::new(keypair);
                 let storage_metrics = StorageMetrics::new(prometheus_registry.as_ref().unwrap());
                 let storage = connect_storage(&gas_pool_config, storage_metrics).await;
-                if force_initialize_gas_pool {
+                if let Some(target_init_coin_balance) = force_init_gas_pool_target_balance {
                     GasPoolInitializer::run(
                         fullnode_url.as_str(),
                         &storage,
