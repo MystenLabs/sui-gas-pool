@@ -4,13 +4,14 @@
 use crate::rpc::client::GasPoolRpcClient;
 use clap::ValueEnum;
 use parking_lot::RwLock;
+use rand::rngs::OsRng;
+use rand::Rng;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::sync::Arc;
 use sui_config::node::DEFAULT_VALIDATOR_GAS_PRICE;
-use sui_types::base_types::SuiAddress;
 use sui_types::crypto::{get_account_key_pair, Signature};
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, TransactionData, TransactionKind};
+use sui_types::transaction::{TransactionData, TransactionKind};
 use tokio::time::{interval, Duration, Instant};
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -42,23 +43,22 @@ impl BenchmarkMode {
             let stats = stats.clone();
             let handle = tokio::spawn(async move {
                 let (sender, keypair) = get_account_key_pair();
+                let mut rng = OsRng;
                 loop {
                     let now = Instant::now();
-                    let budget = 100000000;
+                    let budget = rng.gen_range(100_000_000u64..10_000_000_000u64);
                     let result = client.reserve_gas(budget, None, reserve_duration_sec).await;
-                    println!("result: {:?}", result);
+                    stats.write().num_requests += 1;
                     let Ok((sponsor, reservation_id, gas_coins)) = result else {
                         stats.write().num_errors += 1;
                         continue;
                     };
-                    stats.write().num_requests += 1;
-                    stats.write().total_latency += now.elapsed().as_millis();
                     if !should_execute {
+                        stats.write().total_latency += now.elapsed().as_millis();
                         continue;
                     }
 
-                    let mut pt_builder = ProgrammableTransactionBuilder::new();
-                    pt_builder.transfer_arg(SuiAddress::ZERO, Argument::GasCoin);
+                    let pt_builder = ProgrammableTransactionBuilder::new();
                     let pt = pt_builder.finish();
                     let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
                         TransactionKind::ProgrammableTransaction(pt),
@@ -70,10 +70,11 @@ impl BenchmarkMode {
                     );
                     let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
                     let user_sig = Signature::new_secure(&intent_msg, &keypair).into();
-                    println!(
-                        "result: {:?}",
-                        client.execute_tx(reservation_id, &tx_data, &user_sig).await
-                    );
+                    let result = client.execute_tx(reservation_id, &tx_data, &user_sig).await;
+                    if result.is_err() {
+                        stats.write().num_errors += 1;
+                    }
+                    stats.write().total_latency += now.elapsed().as_millis();
                 }
             });
             handles.push(handle);

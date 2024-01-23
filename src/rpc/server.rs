@@ -18,11 +18,12 @@ use fastcrypto::encoding::Base64;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
+use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
 use tokio::task::JoinHandle;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub struct GasPoolServer {
     pub handle: JoinHandle<()>,
@@ -97,6 +98,13 @@ async fn reserve_gas(
     }
     server.metrics.num_authorized_reserve_gas_requests.inc();
     debug!("Received v1 reserve_gas request: {:?}", payload);
+    if let Err(err) = payload.check_validity() {
+        debug!("Invalid reserve_gas request: {:?}", err);
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ReserveGasResponse::new_err(err)),
+        );
+    }
     let ReserveGasRequest {
         gas_budget,
         request_sponsor,
@@ -120,6 +128,10 @@ async fn reserve_gas(
         .await
     {
         Ok((sponsor, reservation_id, gas_coins)) => {
+            info!(
+                "Reserved gas coins with sponsor={:?}, budget={:?} and duration={:?}: {:?}",
+                sponsor, gas_budget, reserve_duration_secs, gas_coins
+            );
             server.metrics.num_successful_reserve_gas_requests.inc();
             let response = ReserveGasResponse::new_ok(sponsor, reservation_id, gas_coins);
             (StatusCode::OK, Json(response))
@@ -163,20 +175,26 @@ async fn execute_tx(
             ))),
         );
     };
-    // TODO: Should we check user signature?
     match server
         .gas_station
         .execute_transaction(reservation_id, tx_data, user_sig)
         .await
     {
         Ok(effects) => {
+            info!(
+                "Successfully executed transaction with status: {:?}",
+                effects.status()
+            );
             server.metrics.num_successful_execute_tx_requests.inc();
             (StatusCode::OK, Json(ExecuteTxResponse::new_ok(effects)))
         }
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ExecuteTxResponse::new_err(err)),
-        ),
+        Err(err) => {
+            error!("Failed to execute transaction: {:?}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ExecuteTxResponse::new_err(err)),
+            )
+        }
     }
 }
 
