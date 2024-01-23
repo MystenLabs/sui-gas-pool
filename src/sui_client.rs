@@ -90,6 +90,8 @@ impl SuiClient {
         &self,
         object_ids: impl IntoIterator<Item = ObjectID>,
     ) -> HashMap<ObjectID, Option<GasCoin>> {
+        // TODO: There is a bug here where if the gas object owner changed, we don't
+        // take that into consideration.
         let tasks: FuturesUnordered<_> = object_ids
             .into_iter()
             .chunks(50)
