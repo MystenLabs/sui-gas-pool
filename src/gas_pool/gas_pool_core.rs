@@ -15,7 +15,7 @@ use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::crypto::{Signature, SuiKeyPair};
 use sui_types::signature::GenericSignature;
-use sui_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use sui_types::transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI};
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 #[cfg(not(test))]
@@ -23,12 +23,6 @@ use tokio_retry::strategy::FixedInterval;
 #[cfg(not(test))]
 use tokio_retry::Retry;
 use tracing::{debug, error, info};
-
-// TODO: Figure out the right max duration.
-// 10 mins.
-const MAX_DURATION: Duration = Duration::from_secs(10 * 60);
-
-// TODO: Add crash recovery using a persistent storage.
 
 pub struct GasPoolContainer {
     inner: Arc<GasPool>,
@@ -86,21 +80,10 @@ impl GasPool {
             // unwrap is safe because the gas station is constructed using some keypair.
             None => *self.keypairs.keys().next().unwrap(),
         };
-        if duration > MAX_DURATION {
-            bail!(
-                "Duration {:?} is longer than the maximum allowed duration {:?}",
-                duration,
-                MAX_DURATION
-            );
-        }
         let (reservation_id, gas_coins) = self
             .gas_pool_store
             .reserve_gas_coins(sponsor, gas_budget, duration.as_millis() as u64)
             .await?;
-        info!(
-            "Reserved gas coins with sponsor={:?}, budget={:?} and duration={:?}: {:?}",
-            sponsor, gas_budget, duration, gas_coins
-        );
         self.metrics
             .reserved_gas_coin_count_per_request
             .observe(gas_coins.len() as u64);
@@ -126,6 +109,7 @@ impl GasPool {
             Some(keypair) => keypair.as_ref(),
             None => bail!("Sponsor {:?} is not registered", sponsor),
         };
+        Self::check_transaction_validity(&tx_data)?;
         let payment: Vec<_> = tx_data
             .gas_data()
             .payment
@@ -149,11 +133,53 @@ impl GasPool {
             .execute_transaction(tx, Duration::from_secs(60))
             .await;
         // Regardless of whether the transaction succeeded, we need to release the coins.
-        self.release_gas_coins(sponsor, payment).await;
+        let count = self.release_gas_coins(sponsor, payment).await;
+        info!(
+            ?reservation_id,
+            "Released {:?} coins after transaction execution", count
+        );
         response
     }
 
-    async fn release_gas_coins(&self, sponsor_address: SuiAddress, gas_coins: Vec<ObjectID>) {
+    fn check_transaction_validity(tx_data: &TransactionData) -> anyhow::Result<()> {
+        let mut all_args = vec![];
+        for command in tx_data.kind().iter_commands() {
+            match command {
+                Command::MoveCall(call) => {
+                    all_args.extend(call.arguments.iter());
+                }
+                Command::TransferObjects(args, _) => {
+                    all_args.extend(args.iter());
+                }
+                Command::SplitCoins(arg, _) => {
+                    all_args.push(arg);
+                }
+                Command::MergeCoins(arg, args) => {
+                    all_args.push(arg);
+                    all_args.extend(args.iter());
+                }
+                Command::Publish(_, _) => {}
+                Command::MakeMoveVec(_, args) => {
+                    all_args.extend(args.iter());
+                }
+                Command::Upgrade(_, _, _, _) => {}
+            };
+        }
+        let uses_gas = all_args
+            .into_iter()
+            .any(|arg| matches!(*arg, Argument::GasCoin));
+        if uses_gas {
+            bail!("Gas coin can only be used to pay gas")
+        };
+        Ok(())
+    }
+
+    /// Returns number of coins added back to the pool.
+    async fn release_gas_coins(
+        &self,
+        sponsor_address: SuiAddress,
+        gas_coins: Vec<ObjectID>,
+    ) -> usize {
         debug!(
             "Trying to release gas coins. Sponsor: {:?}, coins: {:?}",
             sponsor_address, gas_coins
@@ -174,6 +200,7 @@ impl GasPool {
             .gas_pool_available_gas_coin_count
             .with_label_values(&[&sponsor_address.to_string()])
             .add(updated_coins.len() as i64);
+        updated_coins.len()
     }
 
     async fn start_coin_unlock_task(
@@ -190,7 +217,8 @@ impl GasPool {
                     });
                     if !unlocked_coins.is_empty() {
                         debug!("Coins that are expired: {:?}", unlocked_coins);
-                        self.release_gas_coins(*address, unlocked_coins).await;
+                        let count = self.release_gas_coins(*address, unlocked_coins).await;
+                        info!("Released {:?} coins after expiration", count);
                     }
                 }
                 tokio::select! {

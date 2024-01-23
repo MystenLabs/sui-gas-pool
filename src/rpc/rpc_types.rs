@@ -8,11 +8,38 @@ use serde::{Deserialize, Serialize};
 use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
+// 10 SUI.
+pub const MAX_BUDGET: u64 = 10_000_000_000;
+
+// 10 mins.
+pub const MAX_DURATION_S: u64 = 10 * 60;
+
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ReserveGasRequest {
     pub gas_budget: u64,
     pub request_sponsor: Option<SuiAddress>,
     pub reserve_duration_secs: u64,
+}
+
+impl ReserveGasRequest {
+    pub fn check_validity(&self) -> anyhow::Result<()> {
+        if self.gas_budget == 0 {
+            anyhow::bail!("Gas budget must be positive");
+        }
+        if self.gas_budget > MAX_BUDGET {
+            anyhow::bail!("Gas budget must be less than {}", MAX_BUDGET);
+        }
+        if self.reserve_duration_secs == 0 {
+            anyhow::bail!("Reserve duration must be positive");
+        }
+        if self.reserve_duration_secs > MAX_DURATION_S {
+            anyhow::bail!(
+                "Reserve duration must be less than {} seconds",
+                MAX_DURATION_S
+            );
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
