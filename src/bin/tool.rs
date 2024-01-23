@@ -4,7 +4,7 @@
 use clap::*;
 use std::path::PathBuf;
 use sui_config::Config;
-use sui_gas_station::benchmarks::run_benchmark;
+use sui_gas_station::benchmarks::BenchmarkMode;
 use sui_gas_station::config::{GasPoolStorageConfig, GasStationConfig};
 use sui_gas_station::rpc::client::GasPoolRpcClient;
 
@@ -33,6 +33,8 @@ pub enum ToolCommand {
             default_value_t = 100
         )]
         num_clients: u64,
+        #[arg(long, help = "Benchmark mode.", default_value = "reserve-only")]
+        benchmark_mode: BenchmarkMode,
     },
     /// Generate a sample config file and put it in the specified path.
     #[clap(name = "generate-sample-config")]
@@ -45,11 +47,6 @@ pub enum ToolCommand {
         #[clap(subcommand)]
         cli_command: CliCommand,
     },
-}
-
-#[derive(Copy, Clone, ValueEnum)]
-pub enum BenchmarkMode {
-    ReserveOnly,
 }
 
 #[derive(Subcommand)]
@@ -67,12 +64,15 @@ impl ToolCommand {
                 gas_station_url,
                 reserve_duration_sec,
                 num_clients,
+                benchmark_mode,
             } => {
                 assert!(
                     cfg!(not(debug_assertions)),
                     "Benchmark should only run in release build"
                 );
-                run_benchmark(gas_station_url, reserve_duration_sec, num_clients).await
+                benchmark_mode
+                    .run_benchmark(gas_station_url, reserve_duration_sec, num_clients)
+                    .await
             }
             ToolCommand::GenerateSampleConfig { config_path } => {
                 let config = GasStationConfig {

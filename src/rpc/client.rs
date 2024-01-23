@@ -6,10 +6,13 @@ use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
 use crate::types::ReservationID;
+use fastcrypto::encoding::Base64;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::Client;
 use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectRef, SuiAddress};
+use sui_types::signature::GenericSignature;
+use sui_types::transaction::TransactionData;
 
 #[derive(Clone)]
 pub struct GasPoolRpcClient {
@@ -83,13 +86,20 @@ impl GasPoolRpcClient {
 
     pub async fn execute_tx(
         &self,
-        request: ExecuteTxRequest,
+        reservation_id: ReservationID,
+        tx_data: &TransactionData,
+        user_sig: &GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
             format!("Bearer {}", read_auth_env()).parse().unwrap(),
         );
+        let request = ExecuteTxRequest {
+            reservation_id,
+            tx_bytes: Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()),
+            user_sig: Base64::from_bytes(user_sig.as_ref()),
+        };
         let response = self
             .client
             .post(format!("{}/v1/execute_tx", self.server_address))

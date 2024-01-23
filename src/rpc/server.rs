@@ -124,10 +124,13 @@ async fn reserve_gas(
             let response = ReserveGasResponse::new_ok(sponsor, reservation_id, gas_coins);
             (StatusCode::OK, Json(response))
         }
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ReserveGasResponse::new_err(err)),
-        ),
+        Err(err) => {
+            info!("Failed to reserve gas: {:?}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ReserveGasResponse::new_err(err)),
+            )
+        }
     }
 }
 

@@ -58,6 +58,10 @@ impl GasPool {
         });
         for address in pool.keypairs.keys() {
             let available_coin_count = pool.query_pool_available_coin_count(*address).await;
+            info!(
+                "Gas pool available coin count for {:?}: {:?}",
+                address, available_coin_count
+            );
             pool.metrics
                 .gas_pool_available_gas_coin_count
                 .with_label_values(&[&address.to_string()])
