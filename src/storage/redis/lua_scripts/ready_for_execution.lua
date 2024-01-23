@@ -8,7 +8,6 @@ local key = sponsor_address .. ':' .. reservation_id
 local exists = redis.call('EXISTS', key)
 if exists == 1 then
     redis.call('DEL', key)
-    return 1
 else
-    return 0
+    error('Reservation no longer exist: ' .. reservation_id)
 end

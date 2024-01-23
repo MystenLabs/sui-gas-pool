@@ -7,7 +7,6 @@ use crate::metrics::StorageMetrics;
 use crate::storage::redis::script_manager::ScriptManager;
 use crate::storage::Storage;
 use crate::types::{GasCoin, ReservationID};
-use anyhow::bail;
 use chrono::Utc;
 use redis::aio::ConnectionManager;
 use std::ops::Add;
@@ -46,30 +45,23 @@ impl Storage for RedisStorage {
             .add(Duration::from_millis(reserved_duration_ms))
             .timestamp_millis() as u64;
         let mut conn = self.conn_manager.clone();
-        let (reservation_id, balances, object_ids, versions, digests): (
-            ReservationID,
-            Vec<u64>,
-            Vec<String>,
-            Vec<u64>,
-            Vec<String>,
-        ) = ScriptManager::reserve_gas_coins_script()
-            .arg(sponsor_address.to_string())
-            .arg(target_budget)
-            .arg(expiration_time)
-            .invoke_async(&mut conn)
-            .await?;
-        if balances.is_empty() {
-            bail!("No coins available for reservation");
-        }
-        assert_eq!(balances.len(), object_ids.len());
-        assert_eq!(object_ids.len(), versions.len());
-        assert_eq!(versions.len(), digests.len());
-        let gas_coins = (0..balances.len())
-            .map(|i| {
-                let object_id = ObjectID::from_str(object_ids[i].as_str()).unwrap();
-                let version = SequenceNumber::from(versions[i]);
-                let digest = ObjectDigest::from_str(digests[i].as_str()).unwrap();
-                let balance = balances[i];
+        let (reservation_id, coins): (ReservationID, Vec<String>) =
+            ScriptManager::reserve_gas_coins_script()
+                .arg(sponsor_address.to_string())
+                .arg(target_budget)
+                .arg(expiration_time)
+                .invoke_async(&mut conn)
+                .await?;
+        assert!(!coins.is_empty());
+        let gas_coins = coins
+            .into_iter()
+            .map(|s| {
+                // Each coin is in the form of: balance,object_id,version,digest
+                let mut splits = s.split(',');
+                let balance = splits.next().unwrap().parse::<u64>().unwrap();
+                let object_id = ObjectID::from_str(splits.next().unwrap()).unwrap();
+                let version = SequenceNumber::from(splits.next().unwrap().parse::<u64>().unwrap());
+                let digest = ObjectDigest::from_str(splits.next().unwrap()).unwrap();
                 GasCoin {
                     balance,
                     object_ref: (object_id, version, digest),
@@ -89,17 +81,11 @@ impl Storage for RedisStorage {
         self.metrics.num_ready_for_execution_requests.inc();
 
         let mut conn = self.conn_manager.clone();
-        let result: bool = ScriptManager::ready_for_execution_script()
+        ScriptManager::ready_for_execution_script()
             .arg(sponsor_address.to_string())
             .arg(reservation_id)
-            .invoke_async(&mut conn)
+            .invoke_async::<_, ()>(&mut conn)
             .await?;
-        if !result {
-            bail!(
-                "Reservation {} not found, likely already expired",
-                reservation_id
-            );
-        }
 
         self.metrics
             .num_successful_ready_for_execution_requests
@@ -113,24 +99,26 @@ impl Storage for RedisStorage {
         new_coins: Vec<GasCoin>,
     ) -> anyhow::Result<()> {
         self.metrics.num_add_new_coins_requests.inc();
+        let formatted_coins = new_coins
+            .iter()
+            .map(|c| {
+                // The format is: balance,object_id,version,digest
+                // The way we turn them into strings must be consistent with the way we parse them in
+                // reserve_gas_coins_script.
+                format!(
+                    "{},{},{},{}",
+                    c.balance,
+                    c.object_ref.0,
+                    c.object_ref.1.value(),
+                    c.object_ref.2
+                )
+            })
+            .collect::<Vec<String>>();
 
-        let mut balances = Vec::with_capacity(new_coins.len());
-        let mut object_ids = Vec::with_capacity(new_coins.len());
-        let mut versions = Vec::with_capacity(new_coins.len());
-        let mut digests = Vec::with_capacity(new_coins.len());
-        for coin in new_coins {
-            balances.push(coin.balance);
-            object_ids.push(coin.object_ref.0.to_string());
-            versions.push(coin.object_ref.1.value());
-            digests.push(coin.object_ref.2.to_string());
-        }
         let mut conn = self.conn_manager.clone();
         ScriptManager::add_new_coins_script()
             .arg(sponsor_address.to_string())
-            .arg(serde_json::to_string(&balances)?)
-            .arg(serde_json::to_string(&object_ids)?)
-            .arg(serde_json::to_string(&versions)?)
-            .arg(serde_json::to_string(&digests)?)
+            .arg(serde_json::to_string(&formatted_coins)?)
             .invoke_async(&mut conn)
             .await?;
 
@@ -167,14 +155,17 @@ impl Storage for RedisStorage {
     #[cfg(test)]
     async fn flush_db(&self) {
         let mut conn = self.conn_manager.clone();
-        redis::cmd("FLUSHDB").query_async(&mut conn).await.unwrap();
+        redis::cmd("FLUSHDB")
+            .query_async::<_, String>(&mut conn)
+            .await
+            .unwrap();
     }
 
     async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_available_coin_count_script()
             .arg(sponsor_address.to_string())
-            .invoke_async(&mut conn)
+            .invoke_async::<_, usize>(&mut conn)
             .await
             .unwrap()
     }
@@ -184,7 +175,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_available_coin_total_balance_script()
             .arg(sponsor_address.to_string())
-            .invoke_async(&mut conn)
+            .invoke_async::<_, u64>(&mut conn)
             .await
             .unwrap()
     }
@@ -194,7 +185,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_reserved_coin_count_script()
             .arg(sponsor_address.to_string())
-            .invoke_async(&mut conn)
+            .invoke_async::<_, usize>(&mut conn)
             .await
             .unwrap()
     }

@@ -95,10 +95,12 @@ pub async fn connect_storage_for_testing() -> Arc<dyn Storage> {
 mod tests {
     use crate::storage::{connect_storage_for_testing, Storage, MAX_GAS_PER_QUERY};
     use crate::types::GasCoin;
+    use rand::random;
     use std::collections::BTreeSet;
     use std::sync::Arc;
     use std::time::Duration;
-    use sui_types::base_types::{random_object_ref, SuiAddress};
+    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
+    use sui_types::digests::ObjectDigest;
 
     async fn assert_coin_count(
         storage: &Arc<dyn Storage>,
@@ -122,7 +124,11 @@ mod tests {
             let gas_coins = amounts
                 .into_iter()
                 .map(|balance| GasCoin {
-                    object_ref: random_object_ref(),
+                    object_ref: (
+                        ObjectID::random(),
+                        SequenceNumber::from_u64(random()),
+                        ObjectDigest::random(),
+                    ),
                     balance,
                 })
                 .collect::<Vec<_>>();
