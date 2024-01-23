@@ -21,7 +21,6 @@ pub struct GasStationConfig {
     pub rpc_port: u16,
     pub gas_pool_config: GasPoolStorageConfig,
     pub fullnode_url: String,
-    pub target_init_coin_balance: u64,
     pub run_coin_expiring_task: bool,
 }
 
@@ -34,8 +33,6 @@ impl Default for GasStationConfig {
             rpc_port: DEFAULT_RPC_PORT,
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
-            // 0.01 SUI.
-            target_init_coin_balance: 10000000,
             run_coin_expiring_task: true,
         }
     }
