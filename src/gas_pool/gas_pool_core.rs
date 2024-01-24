@@ -129,10 +129,15 @@ impl GasPool {
         let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
         let sponsor_sig = Signature::new_secure(&intent_msg, keypair);
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig.into(), user_sig]);
+        let cur_time = std::time::Instant::now();
         let response = self
             .sui_client
             .execute_transaction(tx, Duration::from_secs(60))
             .await;
+        let elapsed = cur_time.elapsed().as_millis();
+        self.metrics
+            .transaction_execution_latency_ms
+            .observe(elapsed as u64);
 
         // Regardless of whether the transaction succeeded, we need to release the coins.
         let release_count = self.release_gas_coins(sponsor, payment).await;

@@ -89,6 +89,7 @@ pub struct GasPoolCoreMetrics {
     pub num_expired_gas_coins: IntCounterVec,
     pub num_smashed_gas_coins: IntCounterVec,
     pub reserved_gas_coin_count_per_request: Histogram,
+    pub transaction_execution_latency_ms: Histogram,
     pub num_gas_pool_invariant_violations: IntCounter,
 }
 
@@ -121,6 +122,11 @@ impl GasPoolCoreMetrics {
                 registry,
             )
             .unwrap(),
+            transaction_execution_latency_ms: Histogram::new_in_registry(
+                "transaction_execution_latency",
+                "Latency of transaction execution, in milliseconds",
+                registry,
+            ),
             num_gas_pool_invariant_violations: register_int_counter_with_registry!(
                 "num_gas_pool_invariant_violations",
                 "Total number of invariant violations in the gas pool core",
