@@ -116,6 +116,7 @@ impl GasPool {
             .iter()
             .map(|oref| oref.0)
             .collect();
+        let payment_count = payment.len();
         debug!(
             ?reservation_id,
             "Payment coins in transaction: {:?}", payment
@@ -134,10 +135,21 @@ impl GasPool {
             .await;
 
         // Regardless of whether the transaction succeeded, we need to release the coins.
-        let count = self.release_gas_coins(sponsor, payment).await;
+        let release_count = self.release_gas_coins(sponsor, payment).await;
+        if payment_count > release_count {
+            let smashed_coin_count = payment_count - release_count;
+            info!(
+                ?reservation_id,
+                "Smashed {:?} coins after transaction execution", smashed_coin_count
+            );
+            self.metrics
+                .num_smashed_gas_coins
+                .with_label_values(&[&sponsor.to_string()])
+                .inc_by(smashed_coin_count as u64);
+        }
         info!(
             ?reservation_id,
-            "Released {:?} coins after transaction execution", count
+            "Released {:?} coins after transaction execution", release_count
         );
         response
     }
