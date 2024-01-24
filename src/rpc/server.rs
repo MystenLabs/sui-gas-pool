@@ -19,6 +19,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+use sui_types::base_types::SuiAddress;
 use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
@@ -118,8 +119,34 @@ async fn reserve_gas(
         .metrics
         .reserve_duration_per_request
         .observe(reserve_duration_secs);
-    match server
-        .gas_station
+    // Spawn a thread to process the request so that it will finish even when client drops the connection.
+    tokio::task::spawn(reserve_gas_impl(
+        server.gas_station.clone(),
+        server.metrics.clone(),
+        request_sponsor,
+        gas_budget,
+        reserve_duration_secs,
+    ))
+    .await
+    .unwrap_or_else(|err| {
+        error!("Failed to spawn reserve_gas task: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ReserveGasResponse::new_err(anyhow::anyhow!(
+                "Failed to spawn reserve_gas task"
+            ))),
+        )
+    })
+}
+
+async fn reserve_gas_impl(
+    gas_station: Arc<GasPool>,
+    metrics: Arc<GasPoolRpcMetrics>,
+    request_sponsor: Option<SuiAddress>,
+    gas_budget: u64,
+    reserve_duration_secs: u64,
+) -> (StatusCode, Json<ReserveGasResponse>) {
+    match gas_station
         .reserve_gas(
             request_sponsor,
             gas_budget,
@@ -129,10 +156,14 @@ async fn reserve_gas(
     {
         Ok((sponsor, reservation_id, gas_coins)) => {
             info!(
+                ?reservation_id,
                 "Reserved gas coins with sponsor={:?}, budget={:?} and duration={:?}: {:?}",
-                sponsor, gas_budget, reserve_duration_secs, gas_coins
+                sponsor,
+                gas_budget,
+                reserve_duration_secs,
+                gas_coins
             );
-            server.metrics.num_successful_reserve_gas_requests.inc();
+            metrics.num_successful_reserve_gas_requests.inc();
             let response = ReserveGasResponse::new_ok(sponsor, reservation_id, gas_coins);
             (StatusCode::OK, Json(response))
         }
@@ -175,17 +206,45 @@ async fn execute_tx(
             ))),
         );
     };
-    match server
-        .gas_station
+    // Spawn a thread to process the request so that it will finish even when client drops the connection.
+    tokio::task::spawn(execute_tx_impl(
+        server.gas_station.clone(),
+        server.metrics.clone(),
+        reservation_id,
+        tx_data,
+        user_sig,
+    ))
+    .await
+    .unwrap_or_else(|err| {
+        error!("Failed to spawn reserve_gas task: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                "Failed to spawn execute_tx task"
+            ))),
+        )
+    })
+}
+
+async fn execute_tx_impl(
+    gas_station: Arc<GasPool>,
+    metrics: Arc<GasPoolRpcMetrics>,
+    reservation_id: u64,
+    tx_data: TransactionData,
+    user_sig: GenericSignature,
+) -> (StatusCode, Json<ExecuteTxResponse>) {
+    match gas_station
         .execute_transaction(reservation_id, tx_data, user_sig)
         .await
     {
         Ok(effects) => {
             info!(
-                "Successfully executed transaction with status: {:?}",
+                ?reservation_id,
+                "Successfully executed transaction {:?} with status: {:?}",
+                effects.transaction_digest(),
                 effects.status()
             );
-            server.metrics.num_successful_execute_tx_requests.inc();
+            metrics.num_successful_execute_tx_requests.inc();
             (StatusCode::OK, Json(ExecuteTxResponse::new_ok(effects)))
         }
         Err(err) => {

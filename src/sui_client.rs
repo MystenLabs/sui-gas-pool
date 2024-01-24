@@ -27,7 +27,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 #[cfg(not(test))]
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 #[derive(Clone)]
 pub struct SuiClient {
@@ -71,7 +71,6 @@ impl SuiClient {
                 break;
             }
         }
-        debug!("List of owned coins: {:?}", coins);
         coins
     }
 
@@ -109,7 +108,7 @@ impl SuiClient {
                             )
                             .await
                             .map_err(anyhow::Error::from)
-                            .tap_err(|err| debug!("Failed to read objects: {:?}", err))?;
+                            .tap_err(|_| warn!("Failed to read objects"))?;
                         if result.len() != chunk.len() {
                             anyhow::bail!(
                                 "Unable to get all gas coins, got {} out of {}",
@@ -211,6 +210,7 @@ impl SuiClient {
                         None,
                     )
                     .await
+                    .tap_err(|err| warn!("Failed to execute transaction: {:?}", err))
                     .map_err(anyhow::Error::from)
                     .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
             },

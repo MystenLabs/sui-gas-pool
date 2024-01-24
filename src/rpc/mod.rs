@@ -9,10 +9,8 @@ pub use server::GasPoolServer;
 
 #[cfg(test)]
 mod tests {
-    use crate::rpc::rpc_types::ExecuteTxRequest;
     use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
     use crate::AUTH_ENV_NAME;
-    use fastcrypto::encoding::Base64;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::gas_coin::MIST_PER_SUI;
 

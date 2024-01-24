@@ -59,3 +59,7 @@ rand = "0.8.5"
 
 sui-swarm-config = { git = "https://github.com/MystenLabs/sui", rev = "59d7f5b1c1218603bb4c04f4ee278ab6c638daa8", package = "sui-swarm-config" }
 test-cluster = { git = "https://github.com/MystenLabs/sui", rev = "59d7f5b1c1218603bb4c04f4ee278ab6c638daa8", package = "test-cluster" }
+
+[profile.release]
+panic = "abort"
+
