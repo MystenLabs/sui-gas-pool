@@ -29,7 +29,7 @@ pub struct Command {
             address, and it will take some time to finish. It looks at all the gas coins currently owned by the provided sponsor address, split them into
             smaller gas coins with specified target balance, and initialize the gas pool with these coins."
     )]
-    force_init_gas_pool_target_balance: Option<u64>,
+    force_init_gas_pool: bool,
 }
 
 impl Command {
@@ -44,6 +44,7 @@ impl Command {
             rpc_port,
             metrics_port,
             run_coin_expiring_task,
+            target_init_coin_balance,
         } = config;
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
@@ -59,15 +60,14 @@ impl Command {
         let keypair = Arc::new(keypair);
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
         let storage = connect_storage(&gas_pool_config, storage_metrics).await;
-        if let Some(target_init_coin_balance) = self.force_init_gas_pool_target_balance {
-            GasPoolInitializer::run(
-                fullnode_url.as_str(),
-                &storage,
-                target_init_coin_balance,
-                keypair.clone(),
-            )
-            .await;
-        }
+        GasPoolInitializer::run(
+            fullnode_url.as_str(),
+            &storage,
+            self.force_init_gas_pool,
+            target_init_coin_balance,
+            keypair.clone(),
+        )
+        .await;
 
         let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
         let container = GasPoolContainer::new(

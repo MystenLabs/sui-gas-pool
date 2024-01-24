@@ -198,7 +198,8 @@ impl SuiClient {
         tx: Transaction,
         max_delay: Duration,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
-        debug!("Executing transaction: {:?}, digest={:?}", tx, tx.digest());
+        let digest = *tx.digest();
+        debug!(?digest, "Executing transaction: {:?}", tx);
         let response = retry_with_max_delay!(
             async {
                 self.sui_client
@@ -209,12 +210,13 @@ impl SuiClient {
                         None,
                     )
                     .await
+                    .tap_err(|err| tracing::trace!(?digest, "execute_transaction error: {:?}", err))
                     .map_err(anyhow::Error::from)
                     .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
             },
             max_delay
         );
-        debug!("Transaction execution response: {:?}", response);
+        debug!(?digest, "Transaction execution response: {:?}", response);
         response
     }
 

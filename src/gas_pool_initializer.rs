@@ -176,17 +176,29 @@ impl GasPoolInitializer {
     pub async fn run(
         fullnode_url: &str,
         storage: &Arc<dyn Storage>,
+        force_init_gas_pool: bool,
         target_init_coin_balance: u64,
         keypair: Arc<SuiKeyPair>,
     ) {
+        let sponsor_address = (&keypair.public()).into();
+        let available_coin_count = storage
+            .get_available_coin_count(sponsor_address)
+            .await
+            .unwrap();
+        if available_coin_count > 0 && !force_init_gas_pool {
+            info!(
+                "The account already owns {} gas coins. Skipping gas pool initialization",
+                available_coin_count
+            );
+            return;
+        }
         let start = Instant::now();
-        info!("Deleting all available gas coins from the store");
+        info!("Initializing gas pool. Deleting all existing available gas coins from the store");
         storage
-            .remove_all_available_coins((&keypair.public()).into())
+            .remove_all_available_coins(sponsor_address)
             .await
             .unwrap();
         let sui_client = SuiClient::new(fullnode_url).await;
-        let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
         let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));
         let rgp = sui_client.get_reference_gas_price().await;
