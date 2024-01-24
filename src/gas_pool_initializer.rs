@@ -20,7 +20,7 @@ use sui_types::transaction::{Argument, Transaction, TransactionData};
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub struct GasPoolInitializer {}
 
@@ -180,6 +180,11 @@ impl GasPoolInitializer {
         keypair: Arc<SuiKeyPair>,
     ) {
         let start = Instant::now();
+        info!("Deleting all available gas coins from the store");
+        storage
+            .remove_all_available_coins((&keypair.public()).into())
+            .await
+            .unwrap();
         let sui_client = SuiClient::new(fullnode_url).await;
         let sponsor_address = (&keypair.public()).into();
         let coins = sui_client.get_all_owned_sui_coins(sponsor_address).await;
@@ -192,7 +197,7 @@ impl GasPoolInitializer {
         let gas_cost_per_object = sui_client
             .calibrate_gas_cost_per_object(sponsor_address, &coins[0])
             .await;
-        debug!("Calibrated gas cost per object: {:?}", gas_cost_per_object);
+        info!("Calibrated gas cost per object: {:?}", gas_cost_per_object);
         let result = Self::split_gas_coins(
             coins,
             CoinSplitEnv {
@@ -234,7 +239,7 @@ mod tests {
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing().await;
         GasPoolInitializer::run(fullnode_url.as_str(), &storage, MIST_PER_SUI, keypair).await;
-        assert!(storage.get_available_coin_count(sponsor).await > 900);
+        assert!(storage.get_available_coin_count(sponsor).await.unwrap() > 900);
     }
 
     #[tokio::test]
@@ -252,6 +257,6 @@ mod tests {
             keypair,
         )
         .await;
-        assert!(storage.get_available_coin_count(sponsor).await > 800);
+        assert!(storage.get_available_coin_count(sponsor).await.unwrap() > 800);
     }
 }

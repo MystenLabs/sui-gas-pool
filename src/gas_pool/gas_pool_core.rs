@@ -44,12 +44,12 @@ impl GasPool {
         fullnode_url: &str,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Arc<Self> {
-        let pool = Arc::new(Self {
+        let pool = Self {
             keypairs,
             gas_pool_store,
             sui_client: SuiClient::new(fullnode_url).await,
             metrics,
-        });
+        };
         for address in pool.keypairs.keys() {
             let available_coin_count = pool.query_pool_available_coin_count(*address).await;
             info!(
@@ -61,7 +61,7 @@ impl GasPool {
                 .with_label_values(&[&address.to_string()])
                 .set(available_coin_count as i64);
         }
-        pool
+        Arc::new(pool)
     }
 
     pub async fn reserve_gas(
@@ -132,6 +132,7 @@ impl GasPool {
             .sui_client
             .execute_transaction(tx, Duration::from_secs(60))
             .await;
+
         // Regardless of whether the transaction succeeded, we need to release the coins.
         let count = self.release_gas_coins(sponsor, payment).await;
         info!(
@@ -236,6 +237,7 @@ impl GasPool {
         self.gas_pool_store
             .get_available_coin_count(sponsor_address)
             .await
+            .unwrap()
     }
 }
 

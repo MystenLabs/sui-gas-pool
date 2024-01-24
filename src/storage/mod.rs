@@ -45,12 +45,16 @@ pub trait Storage: Sync + Send {
 
     async fn expire_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<Vec<ObjectID>>;
 
+    /// Delete the entire available coin queue for the given sponsor address.
+    /// This should only be called when we are initializing the gas pool for a given address.
+    async fn remove_all_available_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<()>;
+
     async fn check_health(&self) -> anyhow::Result<()>;
 
     #[cfg(test)]
     async fn flush_db(&self);
 
-    async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize;
+    async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> anyhow::Result<usize>;
 
     #[cfg(test)]
     async fn get_available_coin_total_balance(&self, sponsor_address: SuiAddress) -> u64;
@@ -109,7 +113,10 @@ mod tests {
         reserved: usize,
     ) {
         assert_eq!(
-            storage.get_available_coin_count(sponsor_address).await,
+            storage
+                .get_available_coin_count(sponsor_address)
+                .await
+                .unwrap(),
             available
         );
         assert_eq!(

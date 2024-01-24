@@ -146,6 +146,15 @@ impl Storage for RedisStorage {
         Ok(expired_coin_ids)
     }
 
+    async fn remove_all_available_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<()> {
+        let mut conn = self.conn_manager.clone();
+        ScriptManager::remove_all_available_coins_script()
+            .arg(sponsor_address.to_string())
+            .invoke_async::<_, ()>(&mut conn)
+            .await?;
+        Ok(())
+    }
+
     async fn check_health(&self) -> anyhow::Result<()> {
         let mut conn = self.conn_manager.clone();
         redis::cmd("PING").query_async(&mut conn).await?;
@@ -161,13 +170,13 @@ impl Storage for RedisStorage {
             .unwrap();
     }
 
-    async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
+    async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> anyhow::Result<usize> {
         let mut conn = self.conn_manager.clone();
-        ScriptManager::get_available_coin_count_script()
+        let count = ScriptManager::get_available_coin_count_script()
             .arg(sponsor_address.to_string())
             .invoke_async::<_, usize>(&mut conn)
-            .await
-            .unwrap()
+            .await?;
+        Ok(count)
     }
 
     #[cfg(test)]
