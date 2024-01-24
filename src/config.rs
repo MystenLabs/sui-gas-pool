@@ -27,6 +27,9 @@ pub struct GasStationConfig {
     pub metrics_port: u16,
     pub gas_pool_config: GasPoolStorageConfig,
     pub fullnode_url: String,
+    /// Whether to run the demon task that checks for expired reservations.
+    /// This should always be enabled in production.
+    /// It can be useful to disable this in tests or local testing.
     pub run_coin_expiring_task: bool,
 }
 
