@@ -6,9 +6,12 @@ use serde_with::serde_as;
 use std::net::Ipv4Addr;
 use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
+use sui_types::gas_coin::MIST_PER_SUI;
 
 pub const DEFAULT_RPC_PORT: u16 = 9527;
 pub const DEFAULT_METRICS_PORT: u16 = 9184;
+// 0.1 SUI.
+pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
 
 // Use 127.0.0.1 for tests to avoid OS complaining about permissions.
 #[cfg(test)]
@@ -31,6 +34,7 @@ pub struct GasStationConfig {
     /// This should always be enabled in production.
     /// It can be useful to disable this in tests or local testing.
     pub run_coin_expiring_task: bool,
+    pub target_init_coin_balance: u64,
 }
 
 impl Default for GasStationConfig {
@@ -44,6 +48,7 @@ impl Default for GasStationConfig {
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
             run_coin_expiring_task: true,
+            target_init_coin_balance: DEFAULT_INIT_COIN_BALANCE,
         }
     }
 }

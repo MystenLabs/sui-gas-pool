@@ -67,7 +67,7 @@ pub struct ExecuteTxResponse {
 ### `sui-gas-staiton` Binary
 The binary takes a few command line arguments:
 - `--config-path` (required): Path to the config file.
-- `--force-init-gas-pool-target-balance` (optional): If specified, the gas pool will be initialized with the specified target balance. This should only be called once per address, and may take a while.
+- `--force-init-gas-pool` (optional): If specified, the gas pool will be initialized with the specified target balance from the config. This should only be called once per address, and may take a while.
 
 ### `tool` Binary
 The `tool` binary currently supports a few helper commands:
@@ -96,5 +96,5 @@ GAS_STATION_AUTH=<secret> sui-gas-station --config-path config.yaml
 ```
 If this is the first time we are running the gas station, we will need to initialize the gas pool first.
 ```bash
-GAS_STATION_AUTH=<secret> sui-gas-station --config-path config.yaml --force-init-gas-pool-target-balance <init-balance>
+GAS_STATION_AUTH=<secret> sui-gas-station --config-path config.yaml --force-init-gas-pool
 ```
