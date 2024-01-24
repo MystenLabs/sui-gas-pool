@@ -87,6 +87,7 @@ pub struct GasPoolCoreMetrics {
     pub gas_pool_available_gas_coin_count: IntGaugeVec,
 
     pub num_expired_gas_coins: IntCounterVec,
+    pub num_smashed_gas_coins: IntCounterVec,
     pub reserved_gas_coin_count_per_request: Histogram,
     pub num_gas_pool_invariant_violations: IntCounter,
 }
@@ -109,6 +110,13 @@ impl GasPoolCoreMetrics {
             num_expired_gas_coins: register_int_counter_vec_with_registry!(
                 "num_expired_gas_coins",
                 "Total number of gas coins that are put back due to reservation expiration",
+                &["sponsor"],
+                registry,
+            )
+            .unwrap(),
+            num_smashed_gas_coins: register_int_counter_vec_with_registry!(
+                "num_smashed_gas_coins",
+                "Total number of gas coins that are smashed (i.e. deleted) during transaction execution",
                 &["sponsor"],
                 registry,
             )
