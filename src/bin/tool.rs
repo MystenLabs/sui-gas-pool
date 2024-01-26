@@ -24,7 +24,7 @@ pub enum ToolCommand {
         #[arg(
             long,
             help = "Average duration for each reservation, in number of seconds.",
-            default_value_t = 1
+            default_value_t = 10
         )]
         reserve_duration_sec: u64,
         #[arg(

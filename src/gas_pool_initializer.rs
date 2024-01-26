@@ -97,7 +97,7 @@ impl CoinSplitEnv {
             );
             let result = self
                 .sui_client
-                .execute_transaction(tx.clone(), Duration::from_secs(3))
+                .execute_transaction(tx.clone(), Duration::from_secs(20))
                 .await;
             match result {
                 Ok(effects) => {
