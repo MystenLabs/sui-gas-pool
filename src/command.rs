@@ -52,7 +52,7 @@ impl Command {
         let prometheus_registry = registry_service.default_registry();
         info!("Metrics server started at {:?}", metric_address);
         let telemetry_config = telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("off,sui_gas_station=info")
+            .with_log_level("off,sui_gas_station=debug")
             .with_env()
             .with_prom_registry(&prometheus_registry);
         let _guard = telemetry_config.init();
