@@ -46,12 +46,16 @@ impl BenchmarkMode {
                 let mut rng = OsRng;
                 loop {
                     let now = Instant::now();
-                    let budget = rng.gen_range(100_000_000u64..10_000_000_000u64);
+                    let budget = rng.gen_range(1_000_000u64..100_000_000u64);
                     let result = client.reserve_gas(budget, None, reserve_duration_sec).await;
                     stats.write().num_requests += 1;
-                    let Ok((sponsor, reservation_id, gas_coins)) = result else {
-                        stats.write().num_errors += 1;
-                        continue;
+                    let (sponsor, reservation_id, gas_coins) = match result {
+                        Ok(r) => r,
+                        Err(err) => {
+                            stats.write().num_errors += 1;
+                            println!("Error: {}", err);
+                            continue;
+                        }
                     };
                     if !should_execute {
                         stats.write().total_latency += now.elapsed().as_millis();
@@ -71,8 +75,9 @@ impl BenchmarkMode {
                     let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
                     let user_sig = Signature::new_secure(&intent_msg, &keypair).into();
                     let result = client.execute_tx(reservation_id, &tx_data, &user_sig).await;
-                    if result.is_err() {
+                    if let Err(err) = result {
                         stats.write().num_errors += 1;
+                        println!("Error: {}", err);
                     }
                     stats.write().total_latency += now.elapsed().as_millis();
                 }

@@ -210,7 +210,7 @@ impl SuiClient {
                         None,
                     )
                     .await
-                    .tap_err(|err| tracing::trace!(?digest, "execute_transaction error: {:?}", err))
+                    .tap_err(|err| debug!(?digest, "execute_transaction error: {:?}", err))
                     .map_err(anyhow::Error::from)
                     .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
             },
