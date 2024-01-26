@@ -27,6 +27,18 @@ struct BenchmarkStatsPerSecond {
     pub num_errors: u64,
 }
 
+impl BenchmarkStatsPerSecond {
+    pub fn update_success(&mut self, latency: u128) {
+        self.num_requests += 1;
+        self.total_latency += latency;
+    }
+
+    pub fn update_error(&mut self) {
+        self.num_requests += 1;
+        self.num_errors += 1;
+    }
+}
+
 impl BenchmarkMode {
     pub async fn run_benchmark(
         &self,
@@ -48,17 +60,16 @@ impl BenchmarkMode {
                     let now = Instant::now();
                     let budget = rng.gen_range(1_000_000u64..100_000_000u64);
                     let result = client.reserve_gas(budget, None, reserve_duration_sec).await;
-                    stats.write().num_requests += 1;
                     let (sponsor, reservation_id, gas_coins) = match result {
                         Ok(r) => r,
                         Err(err) => {
-                            stats.write().num_errors += 1;
+                            stats.write().update_error();
                             println!("Error: {}", err);
                             continue;
                         }
                     };
                     if !should_execute {
-                        stats.write().total_latency += now.elapsed().as_millis();
+                        stats.write().update_success(now.elapsed().as_millis());
                         continue;
                     }
 
@@ -76,10 +87,11 @@ impl BenchmarkMode {
                     let user_sig = Signature::new_secure(&intent_msg, &keypair).into();
                     let result = client.execute_tx(reservation_id, &tx_data, &user_sig).await;
                     if let Err(err) = result {
-                        stats.write().num_errors += 1;
+                        stats.write().update_error();
                         println!("Error: {}", err);
+                    } else {
+                        stats.write().update_success(now.elapsed().as_millis());
                     }
-                    stats.write().total_latency += now.elapsed().as_millis();
                 }
             });
             handles.push(handle);
@@ -91,15 +103,16 @@ impl BenchmarkMode {
                 interval.tick().await;
                 let cur_stats = stats.read().clone();
                 let request_per_second = cur_stats.num_requests - prev_stats.num_requests;
+                let num_errors = cur_stats.num_errors - prev_stats.num_errors;
                 println!(
                     "Requests per second: {}, errors per second: {}, average latency: {}ms",
                     request_per_second,
-                    cur_stats.num_errors - prev_stats.num_errors,
+                    num_errors,
                     if request_per_second == 0 {
                         0
                     } else {
                         (cur_stats.total_latency - prev_stats.total_latency)
-                            / request_per_second as u128
+                            / ((request_per_second - num_errors) as u128)
                     }
                 );
                 prev_stats = cur_stats;

@@ -37,6 +37,7 @@ pub struct SuiClient {
 impl SuiClient {
     pub async fn new(fullnode_url: &str) -> Self {
         let sui_client = SuiClientBuilder::default()
+            .max_concurrent_requests(100000)
             .build(fullnode_url)
             .await
             .unwrap();
