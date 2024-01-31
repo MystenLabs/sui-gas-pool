@@ -1,17 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use anyhow::anyhow;
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
+use std::str::FromStr;
 use std::sync::Arc;
 use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{Signature, SuiKeyPair, ToFromBytes};
+use sui_types::crypto::{Signature, SuiKeyPair};
+use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
 
 #[async_trait::async_trait]
 pub trait TxSigner: Send + Sync {
-    async fn sign_transaction(&self, tx_data: &TransactionData) -> anyhow::Result<Signature>;
+    async fn sign_transaction(&self, tx_data: &TransactionData)
+        -> anyhow::Result<GenericSignature>;
     fn get_address(&self) -> SuiAddress;
     fn is_valid_address(&self, address: &SuiAddress) -> bool {
         self.get_address() == *address
@@ -36,7 +40,10 @@ impl SidecarTxSigner {
 
 #[async_trait::async_trait]
 impl TxSigner for SidecarTxSigner {
-    async fn sign_transaction(&self, tx_data: &TransactionData) -> anyhow::Result<Signature> {
+    async fn sign_transaction(
+        &self,
+        tx_data: &TransactionData,
+    ) -> anyhow::Result<GenericSignature> {
         let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data);
         let bytes = bcs::to_bytes(&intent_msg)?;
         let resp = self
@@ -46,8 +53,8 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
-        let sig_bytes = resp.json::<Vec<u8>>().await?;
-        let sig = Signature::from_bytes(&sig_bytes)?;
+        let sig = resp.json::<String>().await?;
+        let sig = GenericSignature::from_str(&sig).map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
     }
 
@@ -68,9 +75,12 @@ impl TestTxSigner {
 
 #[async_trait::async_trait]
 impl TxSigner for TestTxSigner {
-    async fn sign_transaction(&self, tx_data: &TransactionData) -> anyhow::Result<Signature> {
+    async fn sign_transaction(
+        &self,
+        tx_data: &TransactionData,
+    ) -> anyhow::Result<GenericSignature> {
         let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data);
-        let sponsor_sig = Signature::new_secure(&intent_msg, &self.keypair);
+        let sponsor_sig = Signature::new_secure(&intent_msg, &self.keypair).into();
         Ok(sponsor_sig)
     }
 

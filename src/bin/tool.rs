@@ -5,8 +5,9 @@ use clap::*;
 use std::path::PathBuf;
 use sui_config::Config;
 use sui_gas_station::benchmarks::BenchmarkMode;
-use sui_gas_station::config::{GasPoolStorageConfig, GasStationConfig};
+use sui_gas_station::config::{GasPoolStorageConfig, GasStationConfig, TxSignerConfig};
 use sui_gas_station::rpc::client::GasPoolRpcClient;
+use sui_types::crypto::get_account_key_pair;
 
 #[derive(Parser)]
 #[command(
@@ -41,6 +42,8 @@ pub enum ToolCommand {
     GenerateSampleConfig {
         #[arg(long, help = "Path to config file")]
         config_path: PathBuf,
+        #[arg(long, help = "Whether to use a sidecar service to sign transactions")]
+        with_sidecar_signer: bool,
     },
     #[clap(name = "cli")]
     CLI {
@@ -74,8 +77,22 @@ impl ToolCommand {
                     .run_benchmark(gas_station_url, reserve_duration_sec, num_clients)
                     .await
             }
-            ToolCommand::GenerateSampleConfig { config_path } => {
+            ToolCommand::GenerateSampleConfig {
+                config_path,
+                with_sidecar_signer,
+            } => {
+                let signer_config = if with_sidecar_signer {
+                    TxSignerConfig::Sidecar {
+                        sponsor_address: get_account_key_pair().0,
+                        sidecar_url: "http://localhost:3000/sign-transaction".to_string(),
+                    }
+                } else {
+                    TxSignerConfig::Local {
+                        keypair: get_account_key_pair().1.into(),
+                    }
+                };
                 let config = GasStationConfig {
+                    signer_config,
                     gas_pool_config: GasPoolStorageConfig::Redis {
                         redis_url: "redis:://127.0.0.1".to_string(),
                     },
