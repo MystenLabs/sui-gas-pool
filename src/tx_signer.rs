@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
+use fastcrypto::encoding::{Base64, Encoding};
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
@@ -44,8 +45,7 @@ impl TxSigner for SidecarTxSigner {
         &self,
         tx_data: &TransactionData,
     ) -> anyhow::Result<GenericSignature> {
-        let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data);
-        let bytes = bcs::to_bytes(&intent_msg)?;
+        let bytes = Base64::encode(bcs::to_bytes(&tx_data)?);
         let resp = self
             .client
             .post(self.sidecar_url.clone())
@@ -53,8 +53,8 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
-        let sig = resp.json::<String>().await?;
-        let sig = GenericSignature::from_str(&sig).map_err(|err| anyhow!(err.to_string()))?;
+        let sig_bytes = resp.json::<String>().await?;
+        let sig = GenericSignature::from_str(&sig_bytes).map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
     }
 
