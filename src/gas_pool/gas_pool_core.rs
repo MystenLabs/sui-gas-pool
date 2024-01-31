@@ -130,7 +130,7 @@ impl GasPool {
             },
             Duration::from_secs(5)
         )?;
-        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig.into(), user_sig]);
+        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
         let cur_time = std::time::Instant::now();
         let response = self
             .sui_client

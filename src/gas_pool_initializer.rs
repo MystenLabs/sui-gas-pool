@@ -102,7 +102,7 @@ impl CoinSplitEnv {
                     .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
             })
             .unwrap();
-            let tx = Transaction::from_data(tx_data, vec![sig]);
+            let tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
             debug!(
                 "Sending transaction for execution. Tx digest: {:?}",
                 tx.digest()
