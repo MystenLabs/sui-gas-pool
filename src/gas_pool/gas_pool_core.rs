@@ -122,7 +122,12 @@ impl GasPool {
         debug!(?reservation_id, "Reservation is ready for execution");
 
         let sponsor_sig = retry_with_max_delay!(
-            async { self.signer.sign_transaction(&tx_data).await },
+            async {
+                self.signer
+                    .sign_transaction(&tx_data)
+                    .await
+                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
+            },
             Duration::from_secs(5)
         )?;
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig.into(), user_sig]);

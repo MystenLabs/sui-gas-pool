@@ -18,6 +18,7 @@ use sui_types::gas_coin::GAS;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::transaction::{Argument, Transaction, TransactionData};
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
+use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 #[cfg(not(test))]
@@ -94,8 +95,13 @@ impl CoinSplitEnv {
                 budget,
                 rgp,
             );
-            let sig =
-                retry_forever!(async { self.signer.sign_transaction(&tx_data).await }).unwrap();
+            let sig = retry_forever!(async {
+                self.signer
+                    .sign_transaction(&tx_data)
+                    .await
+                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
+            })
+            .unwrap();
             let tx = Transaction::from_data(tx_data, vec![sig]);
             debug!(
                 "Sending transaction for execution. Tx digest: {:?}",
