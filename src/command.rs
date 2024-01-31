@@ -10,7 +10,6 @@ use crate::storage::connect_storage;
 use clap::*;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
-use std::sync::Arc;
 use sui_config::Config;
 use tracing::info;
 
@@ -37,9 +36,9 @@ impl Command {
         let config: GasStationConfig = GasStationConfig::load(self.config_path).unwrap();
         info!("Config: {:?}", config);
         let GasStationConfig {
+            signer_config,
             gas_pool_config,
             fullnode_url,
-            keypair,
             rpc_host_ip,
             rpc_port,
             metrics_port,
@@ -57,7 +56,7 @@ impl Command {
             .with_prom_registry(&prometheus_registry);
         let _guard = telemetry_config.init();
 
-        let keypair = Arc::new(keypair);
+        let signer = signer_config.new_signer();
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
         let storage = connect_storage(&gas_pool_config, storage_metrics).await;
         GasPoolInitializer::run(
@@ -65,13 +64,13 @@ impl Command {
             &storage,
             self.force_init_gas_pool,
             target_init_coin_balance,
-            keypair.clone(),
+            signer.clone(),
         )
         .await;
 
         let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
         let container = GasPoolContainer::new(
-            keypair,
+            signer,
             storage,
             &fullnode_url,
             run_coin_expiring_task,

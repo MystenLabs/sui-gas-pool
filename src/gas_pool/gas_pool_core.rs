@@ -2,25 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::metrics::GasPoolCoreMetrics;
-use crate::retry_forever;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
+use crate::tx_signer::TxSigner;
 use crate::types::ReservationID;
+use crate::{retry_forever, retry_with_max_delay};
 use anyhow::bail;
-use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::crypto::{Signature, SuiKeyPair};
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI};
 use tap::TapFallible;
 use tokio::task::JoinHandle;
+use tokio_retry::strategy::ExponentialBackoff;
 #[cfg(not(test))]
 use tokio_retry::strategy::FixedInterval;
-#[cfg(not(test))]
 use tokio_retry::Retry;
 use tracing::{debug, error, info};
 
@@ -31,7 +29,7 @@ pub struct GasPoolContainer {
 }
 
 pub struct GasPool {
-    keypairs: HashMap<SuiAddress, Arc<SuiKeyPair>>,
+    signer: Arc<dyn TxSigner>,
     gas_pool_store: Arc<dyn Storage>,
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
@@ -39,28 +37,27 @@ pub struct GasPool {
 
 impl GasPool {
     pub async fn new(
-        keypairs: HashMap<SuiAddress, Arc<SuiKeyPair>>,
+        signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Arc<Self> {
         let pool = Self {
-            keypairs,
+            signer,
             gas_pool_store,
             sui_client: SuiClient::new(fullnode_url).await,
             metrics,
         };
-        for address in pool.keypairs.keys() {
-            let available_coin_count = pool.query_pool_available_coin_count(*address).await;
-            info!(
-                "Gas pool available coin count for {:?}: {:?}",
-                address, available_coin_count
-            );
-            pool.metrics
-                .gas_pool_available_gas_coin_count
-                .with_label_values(&[&address.to_string()])
-                .set(available_coin_count as i64);
-        }
+        let sponsor_address = pool.signer.get_address();
+        let available_coin_count = pool.query_pool_available_coin_count(sponsor_address).await;
+        info!(
+            "Gas pool available coin count for {:?}: {:?}",
+            sponsor_address, available_coin_count
+        );
+        pool.metrics
+            .gas_pool_available_gas_coin_count
+            .with_label_values(&[&sponsor_address.to_string()])
+            .set(available_coin_count as i64);
         Arc::new(pool)
     }
 
@@ -72,13 +69,12 @@ impl GasPool {
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         let sponsor = match request_sponsor {
             Some(sponsor) => {
-                if !self.keypairs.contains_key(&sponsor) {
+                if !self.signer.is_valid_address(&sponsor) {
                     bail!("Sponsor {:?} is not registered", sponsor);
                 };
                 sponsor
             }
-            // unwrap is safe because the gas station is constructed using some keypair.
-            None => *self.keypairs.keys().next().unwrap(),
+            None => self.signer.get_address(),
         };
         let (reservation_id, gas_coins) = self
             .gas_pool_store
@@ -105,9 +101,8 @@ impl GasPool {
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let sponsor = tx_data.gas_data().owner;
-        let keypair = match self.keypairs.get(&sponsor) {
-            Some(keypair) => keypair.as_ref(),
-            None => bail!("Sponsor {:?} is not registered", sponsor),
+        if !self.signer.is_valid_address(&sponsor) {
+            bail!("Sponsor {:?} is not registered", sponsor);
         };
         Self::check_transaction_validity(&tx_data)?;
         let payment: Vec<_> = tx_data
@@ -126,8 +121,10 @@ impl GasPool {
             .await?;
         debug!(?reservation_id, "Reservation is ready for execution");
 
-        let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
-        let sponsor_sig = Signature::new_secure(&intent_msg, keypair);
+        let sponsor_sig = retry_with_max_delay!(
+            async { self.signer.sign_transaction(&tx_data).await },
+            Duration::from_secs(5)
+        )?;
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig.into(), user_sig]);
         let cur_time = std::time::Instant::now();
         let response = self
@@ -226,18 +223,19 @@ impl GasPool {
         mut cancel_receiver: tokio::sync::oneshot::Receiver<()>,
     ) -> JoinHandle<()> {
         tokio::task::spawn(async move {
+            let sponsor_address = self.signer.get_address();
             loop {
-                for address in self.keypairs.keys() {
-                    let expire_results = self.gas_pool_store.expire_coins(*address).await;
-                    let unlocked_coins = expire_results.unwrap_or_else(|err| {
-                        error!("Failed to call expire_coins to the storage: {:?}", err);
-                        vec![]
-                    });
-                    if !unlocked_coins.is_empty() {
-                        debug!("Coins that are expired: {:?}", unlocked_coins);
-                        let count = self.release_gas_coins(*address, unlocked_coins).await;
-                        info!("Released {:?} coins after expiration", count);
-                    }
+                let expire_results = self.gas_pool_store.expire_coins(sponsor_address).await;
+                let unlocked_coins = expire_results.unwrap_or_else(|err| {
+                    error!("Failed to call expire_coins to the storage: {:?}", err);
+                    vec![]
+                });
+                if !unlocked_coins.is_empty() {
+                    debug!("Coins that are expired: {:?}", unlocked_coins);
+                    let count = self
+                        .release_gas_coins(sponsor_address, unlocked_coins)
+                        .await;
+                    info!("Released {:?} coins after expiration", count);
                 }
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_millis(100)) => {}
@@ -260,15 +258,13 @@ impl GasPool {
 
 impl GasPoolContainer {
     pub async fn new(
-        keypair: Arc<SuiKeyPair>,
+        signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
         run_coin_expiring_task: bool,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Self {
-        let sponsor = (&keypair.public()).into();
-        let keypairs = HashMap::from([(sponsor, keypair)]);
-        let inner = GasPool::new(keypairs, gas_pool_store, fullnode_url, metrics).await;
+        let inner = GasPool::new(signer, gas_pool_store, fullnode_url, metrics).await;
         let (_coin_unlocker_task, cancel_sender) = if run_coin_expiring_task {
             let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
             let coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;

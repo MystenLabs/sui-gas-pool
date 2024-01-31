@@ -1,9 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::tx_signer::{TestTxSigner, TxSigner};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::net::Ipv4Addr;
+use std::sync::Arc;
 use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
@@ -23,8 +25,7 @@ pub const LOCALHOST: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct GasStationConfig {
-    // TODO: Make this a vector.
-    pub keypair: SuiKeyPair,
+    pub signer_config: TxSignerConfig,
     pub rpc_host_ip: Ipv4Addr,
     pub rpc_port: u16,
     pub metrics_port: u16,
@@ -39,9 +40,8 @@ pub struct GasStationConfig {
 
 impl Default for GasStationConfig {
     fn default() -> Self {
-        let (_, keypair) = get_account_key_pair();
         GasStationConfig {
-            keypair: keypair.into(),
+            signer_config: TxSignerConfig::default(),
             rpc_host_ip: LOCALHOST,
             rpc_port: DEFAULT_RPC_PORT,
             metrics_port: DEFAULT_METRICS_PORT,
@@ -64,6 +64,34 @@ impl Default for GasPoolStorageConfig {
     fn default() -> Self {
         Self::Redis {
             redis_url: "redis://127.0.0.1:6379".to_string(),
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TxSignerConfig {
+    Local { keypair: SuiKeyPair },
+    Sidecar { sidecar_url: String },
+}
+
+impl Default for TxSignerConfig {
+    fn default() -> Self {
+        let (_, keypair) = get_account_key_pair();
+        Self::Local {
+            keypair: keypair.into(),
+        }
+    }
+}
+
+impl TxSignerConfig {
+    pub fn new_signer(self) -> Arc<dyn TxSigner> {
+        match self {
+            TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
+            TxSignerConfig::Sidecar { sidecar_url } => {
+                todo!();
+            }
         }
     }
 }

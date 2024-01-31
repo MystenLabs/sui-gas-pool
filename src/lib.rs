@@ -13,6 +13,7 @@ pub mod storage;
 pub mod sui_client;
 #[cfg(test)]
 pub mod test_env;
+pub mod tx_signer;
 pub mod types;
 
 pub const AUTH_ENV_NAME: &str = "GAS_STATION_AUTH";
