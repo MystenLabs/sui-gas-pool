@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-use anyhow::bail;
 use fastcrypto::encoding::{Base64, Encoding};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use sui_types::base_types::SuiAddress;
@@ -23,6 +22,11 @@ pub trait TxSigner: Send + Sync {
     fn is_valid_address(&self, address: &SuiAddress) -> bool {
         self.get_address() == *address
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct SignatureResponse {
+    signature: String,
 }
 
 pub struct SidecarTxSigner {
@@ -55,11 +59,8 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
-        let sig_bytes = resp.json::<HashMap<u64, String>>().await?;
-        if sig_bytes.len() != 1 {
-            bail!("Must return exactly one signature: {:?}", sig_bytes);
-        }
-        let sig = GenericSignature::from_str(&sig_bytes.into_values().next().unwrap())
+        let sig_bytes = resp.json::<SignatureResponse>().await?;
+        let sig = GenericSignature::from_str(&sig_bytes.signature)
             .map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
     }
