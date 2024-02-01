@@ -7,6 +7,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use sui_types::base_types::SuiAddress;
@@ -54,12 +55,12 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
-        let sig_bytes = resp.json::<Vec<String>>().await?;
+        let sig_bytes = resp.json::<HashMap<u64, String>>().await?;
         if sig_bytes.len() != 1 {
             bail!("Must return exactly one signature: {:?}", sig_bytes);
         }
-        let sig =
-            GenericSignature::from_str(&sig_bytes[0]).map_err(|err| anyhow!(err.to_string()))?;
+        let sig = GenericSignature::from_str(&sig_bytes.into_values().next().unwrap())
+            .map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
     }
 
