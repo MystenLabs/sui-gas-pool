@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
+use anyhow::bail;
 use fastcrypto::encoding::{Base64, Encoding};
 use reqwest::Client;
 use serde_json::json;
@@ -53,9 +54,12 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
-        tracing::debug!("sign_transaction response: {:?}", resp);
-        let sig_bytes = resp.json::<String>().await?;
-        let sig = GenericSignature::from_str(&sig_bytes).map_err(|err| anyhow!(err.to_string()))?;
+        let sig_bytes = resp.json::<Vec<String>>().await?;
+        if sig_bytes.len() != 1 {
+            bail!("Must return exactly one signature: {:?}", sig_bytes);
+        }
+        let sig =
+            GenericSignature::from_str(&sig_bytes[0]).map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
     }
 
