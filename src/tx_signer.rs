@@ -53,6 +53,7 @@ impl TxSigner for SidecarTxSigner {
             .json(&json!({"txBytes": bytes}))
             .send()
             .await?;
+        tracing::debug!("sign_transaction response: {:?}", resp);
         let sig_bytes = resp.json::<String>().await?;
         let sig = GenericSignature::from_str(&sig_bytes).map_err(|err| anyhow!(err.to_string()))?;
         Ok(sig)
