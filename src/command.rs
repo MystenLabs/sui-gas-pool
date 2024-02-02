@@ -42,8 +42,7 @@ impl Command {
             rpc_host_ip,
             rpc_port,
             metrics_port,
-            run_coin_expiring_task,
-            target_init_coin_balance,
+            coin_init_config,
         } = config;
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
@@ -59,24 +58,16 @@ impl Command {
         let signer = signer_config.new_signer();
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
         let storage = connect_storage(&gas_pool_config, storage_metrics).await;
-        GasPoolInitializer::run(
-            fullnode_url.as_str(),
-            &storage,
-            self.force_init_gas_pool,
-            target_init_coin_balance,
+        let _coin_init_task = GasPoolInitializer::start(
+            fullnode_url.clone(),
+            storage.clone(),
+            coin_init_config,
             signer.clone(),
         )
         .await;
 
         let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
-        let container = GasPoolContainer::new(
-            signer,
-            storage,
-            &fullnode_url,
-            run_coin_expiring_task,
-            core_metrics,
-        )
-        .await;
+        let container = GasPoolContainer::new(signer, storage, &fullnode_url, core_metrics).await;
 
         let rpc_metrics = GasPoolRpcMetrics::new(&prometheus_registry);
         let server = GasPoolServer::new(
