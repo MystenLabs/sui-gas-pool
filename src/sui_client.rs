@@ -44,10 +44,14 @@ impl SuiClient {
         Self { sui_client }
     }
 
-    pub async fn get_all_owned_sui_coins(&self, address: SuiAddress) -> Vec<GasCoin> {
+    pub async fn get_all_owned_sui_coins_above_balance_threshold(
+        &self,
+        address: SuiAddress,
+        balance_threshold: u64,
+    ) -> Vec<GasCoin> {
         info!(
-            "Querying all gas coins owned by sponsor address: {}",
-            address
+            "Querying all gas coins owned by sponsor address {} that has at least {} balance",
+            address, balance_threshold
         );
         let mut cursor = None;
         let mut coins = Vec::new();
@@ -61,10 +65,12 @@ impl SuiClient {
             })
             .unwrap();
             for coin in page.data {
-                coins.push(GasCoin {
-                    object_ref: coin.object_ref(),
-                    balance: coin.balance,
-                });
+                if coin.balance >= balance_threshold {
+                    coins.push(GasCoin {
+                        object_ref: coin.object_ref(),
+                        balance: coin.balance,
+                    });
+                }
             }
             if page.has_next_page {
                 cursor = page.next_cursor;

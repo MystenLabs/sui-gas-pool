@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::config::CoinInitConfig;
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
@@ -26,10 +27,10 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<
                 address: Some(sponsor),
                 gas_amounts: init_gas_amounts,
             },
-            // Besides sponsor, also initialize another account with 10 SUI.
+            // Besides sponsor, also initialize another account with 1000 SUI.
             AccountConfig {
                 address: None,
-                gas_amounts: vec![MIST_PER_SUI; 10],
+                gas_amounts: vec![1000 * MIST_PER_SUI],
             },
         ])
         .build()
@@ -44,11 +45,13 @@ pub async fn start_gas_station(
     let (test_cluster, signer) = start_sui_cluster(init_gas_amounts).await;
     let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
     let storage = connect_storage_for_testing().await;
-    GasPoolInitializer::run(
-        fullnode_url.as_str(),
-        &storage,
-        false,
-        target_init_coin_balance,
+    GasPoolInitializer::start(
+        fullnode_url.clone(),
+        storage.clone(),
+        CoinInitConfig {
+            target_init_balance: target_init_coin_balance,
+            ..Default::default()
+        },
         signer.clone(),
     )
     .await;
@@ -56,7 +59,6 @@ pub async fn start_gas_station(
         signer,
         storage,
         fullnode_url.as_str(),
-        true,
         GasPoolCoreMetrics::new_for_testing(),
     )
     .await;

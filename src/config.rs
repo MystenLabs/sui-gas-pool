@@ -15,6 +15,8 @@ pub const DEFAULT_RPC_PORT: u16 = 9527;
 pub const DEFAULT_METRICS_PORT: u16 = 9184;
 // 0.1 SUI.
 pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
+// 24 hours.
+const DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC: u64 = 60 * 60 * 24;
 
 // Use 127.0.0.1 for tests to avoid OS complaining about permissions.
 #[cfg(test)]
@@ -32,12 +34,10 @@ pub struct GasStationConfig {
     pub metrics_port: u16,
     pub gas_pool_config: GasPoolStorageConfig,
     pub fullnode_url: String,
-    /// Whether to run the demon task that checks for expired reservations.
-    /// This should always be enabled in production.
-    /// It can be useful to disable this in tests or local testing.
-    pub run_coin_expiring_task: bool,
-    pub target_init_coin_balance: u64,
+    pub coin_init_config: CoinInitConfig,
 }
+
+impl Config for GasStationConfig {}
 
 impl Default for GasStationConfig {
     fn default() -> Self {
@@ -48,8 +48,7 @@ impl Default for GasStationConfig {
             metrics_port: DEFAULT_METRICS_PORT,
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
-            run_coin_expiring_task: true,
-            target_init_coin_balance: DEFAULT_INIT_COIN_BALANCE,
+            coin_init_config: CoinInitConfig::default(),
         }
     }
 }
@@ -103,4 +102,23 @@ impl TxSignerConfig {
     }
 }
 
-impl Config for GasStationConfig {}
+#[serde_as]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CoinInitConfig {
+    /// When we split a new gas coin, what is the target balance for the new coins, in MIST.
+    pub target_init_balance: u64,
+    /// How often do we look at whether there are new coins added to the sponsor account that
+    /// requires initialization, i.e. splitting into smaller coins and add them to the gas pool.
+    /// This is in seconds.
+    pub refresh_interval_sec: u64,
+}
+
+impl Default for CoinInitConfig {
+    fn default() -> Self {
+        CoinInitConfig {
+            target_init_balance: DEFAULT_INIT_COIN_BALANCE,
+            refresh_interval_sec: DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC,
+        }
+    }
+}

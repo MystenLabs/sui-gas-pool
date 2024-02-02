@@ -155,6 +155,15 @@ impl Storage for RedisStorage {
         Ok(())
     }
 
+    async fn is_initialized(&self, sponsor_address: SuiAddress) -> anyhow::Result<bool> {
+        let mut conn = self.conn_manager.clone();
+        let result = ScriptManager::get_is_initialized_script()
+            .arg(sponsor_address.to_string())
+            .invoke_async::<_, bool>(&mut conn)
+            .await?;
+        Ok(result)
+    }
+
     async fn check_health(&self) -> anyhow::Result<()> {
         let mut conn = self.conn_manager.clone();
         redis::cmd("PING").query_async(&mut conn).await?;

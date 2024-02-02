@@ -22,9 +22,12 @@ use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
 use tracing::{debug, error, info};
 
+const EXPIRATION_JOB_INTERVAL: Duration = Duration::from_secs(1);
+
 pub struct GasPoolContainer {
     inner: Arc<GasPool>,
-    _coin_unlocker_task: Option<JoinHandle<()>>,
+    _coin_unlocker_task: JoinHandle<()>,
+    // This is always Some. It is None only after the drop method is called.
     cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -243,7 +246,7 @@ impl GasPool {
                     info!("Released {:?} coins after expiration", count);
                 }
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_millis(100)) => {}
+                    _ = tokio::time::sleep(EXPIRATION_JOB_INTERVAL) => {}
                     _ = &mut cancel_receiver => {
                         info!("Coin unlocker task is cancelled");
                         break;
@@ -266,22 +269,16 @@ impl GasPoolContainer {
         signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
-        run_coin_expiring_task: bool,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Self {
         let inner = GasPool::new(signer, gas_pool_store, fullnode_url, metrics).await;
-        let (_coin_unlocker_task, cancel_sender) = if run_coin_expiring_task {
-            let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
-            let coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;
-            (Some(coin_unlocker_task), Some(cancel_sender))
-        } else {
-            (None, None)
-        };
+        let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
+        let _coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;
 
         Self {
             inner,
             _coin_unlocker_task,
-            cancel_sender,
+            cancel_sender: Some(cancel_sender),
         }
     }
 
@@ -292,8 +289,6 @@ impl GasPoolContainer {
 
 impl Drop for GasPoolContainer {
     fn drop(&mut self) {
-        if let Some(sender) = self.cancel_sender.take() {
-            sender.send(()).unwrap();
-        }
+        self.cancel_sender.take().unwrap().send(()).unwrap();
     }
 }

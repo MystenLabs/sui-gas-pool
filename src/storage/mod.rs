@@ -49,6 +49,9 @@ pub trait Storage: Sync + Send {
     /// This should only be called when we are initializing the gas pool for a given address.
     async fn remove_all_available_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<()>;
 
+    /// Whether the gas pool for the given sponsor address is initialized.
+    async fn is_initialized(&self, sponsor_address: SuiAddress) -> anyhow::Result<bool>;
+
     async fn check_health(&self) -> anyhow::Result<()>;
 
     #[cfg(test)]
@@ -103,7 +106,7 @@ mod tests {
     use std::collections::BTreeSet;
     use std::sync::Arc;
     use std::time::Duration;
-    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress};
+    use sui_types::base_types::{random_object_ref, ObjectID, SequenceNumber, SuiAddress};
     use sui_types::digests::ObjectDigest;
 
     async fn assert_coin_count(
@@ -147,6 +150,27 @@ mod tests {
             }
         }
         storage
+    }
+
+    #[tokio::test]
+    async fn test_gas_pool_init() {
+        let sponsor = SuiAddress::random_for_testing_only();
+        let storage = connect_storage_for_testing().await;
+        assert!(!storage.is_initialized(sponsor).await.unwrap());
+        storage.add_new_coins(sponsor, vec![]).await.unwrap();
+        // Still not initialized because we are not adding any coins.
+        assert!(!storage.is_initialized(sponsor).await.unwrap());
+        storage
+            .add_new_coins(
+                sponsor,
+                vec![GasCoin {
+                    object_ref: random_object_ref(),
+                    balance: 1,
+                }],
+            )
+            .await
+            .unwrap();
+        assert!(storage.is_initialized(sponsor).await.unwrap());
     }
 
     #[tokio::test]
