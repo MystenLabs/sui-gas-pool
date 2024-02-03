@@ -54,6 +54,7 @@ pub trait Storage: Sync + Send {
 
     async fn check_health(&self) -> anyhow::Result<()>;
 
+    #[cfg(test)]
     async fn flush_db(&self);
 
     async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> anyhow::Result<usize>;

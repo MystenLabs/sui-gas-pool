@@ -182,7 +182,6 @@ impl GasPoolInitializer {
         coin_init_config: CoinInitConfig,
         signer: Arc<dyn TxSigner>,
     ) -> Self {
-        storage.flush_db().await;
         if !storage.is_initialized(signer.get_address()).await.unwrap() {
             // If the pool has never been initialized, always run once at the beginning to make sure we have enough coins.
             Self::run_once(
