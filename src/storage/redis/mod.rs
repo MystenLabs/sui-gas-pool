@@ -170,7 +170,6 @@ impl Storage for RedisStorage {
         Ok(())
     }
 
-    #[cfg(test)]
     async fn flush_db(&self) {
         let mut conn = self.conn_manager.clone();
         redis::cmd("FLUSHDB")
