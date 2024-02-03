@@ -225,6 +225,7 @@ impl GasPoolInitializer {
         let force_init = !storage.is_initialized(sponsor_address).await.unwrap();
         let sui_client = SuiClient::new(fullnode_url).await;
         let balance_threshold = if force_init {
+            info!("The pool has never been initialized. Initializing it for the first time");
             0
         } else {
             coin_init_config.target_init_balance * NEW_COIN_BALANCE_FACTOR_THRESHOLD
