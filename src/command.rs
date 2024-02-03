@@ -34,7 +34,7 @@ pub struct Command {
 impl Command {
     pub async fn execute(self) {
         let config: GasStationConfig = GasStationConfig::load(self.config_path).unwrap();
-        info!("Config: {:?}", config);
+        print!("Config: {:?}", config);
         let GasStationConfig {
             signer_config,
             gas_pool_config,
@@ -48,12 +48,12 @@ impl Command {
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
         let registry_service = mysten_metrics::start_prometheus_server(metric_address);
         let prometheus_registry = registry_service.default_registry();
-        info!("Metrics server started at {:?}", metric_address);
         let telemetry_config = telemetry_subscribers::TelemetryConfig::new()
             .with_log_level("off,sui_gas_station=debug")
             .with_env()
             .with_prom_registry(&prometheus_registry);
         let _guard = telemetry_config.init();
+        info!("Metrics server started at {:?}", metric_address);
 
         let signer = signer_config.new_signer();
         let storage_metrics = StorageMetrics::new(&prometheus_registry);

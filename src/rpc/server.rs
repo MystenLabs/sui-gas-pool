@@ -26,6 +26,23 @@ use sui_types::transaction::TransactionData;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info};
 
+const GIT_REVISION: &str = {
+    if let Some(revision) = option_env!("GIT_REVISION") {
+        revision
+    } else {
+        let version = git_version::git_version!(
+            args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
+            fallback = ""
+        );
+
+        if version.is_empty() {
+            panic!("unable to query git revision");
+        }
+        version
+    }
+};
+const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+
 pub struct GasPoolServer {
     pub handle: JoinHandle<()>,
     pub rpc_port: u16,
@@ -41,6 +58,7 @@ impl GasPoolServer {
         let state = ServerState::new(station, metrics);
         let app = Router::new()
             .route("/", get(health))
+            .route("/version", get(version))
             .route("/v1/reserve_gas", post(reserve_gas))
             .route("/v1/execute_tx", post(execute_tx))
             .layer(Extension(state));
@@ -81,6 +99,11 @@ impl ServerState {
 async fn health() -> &'static str {
     info!("Received health request");
     "OK"
+}
+
+async fn version() -> &'static str {
+    info!("Received version request");
+    VERSION
 }
 
 async fn reserve_gas(

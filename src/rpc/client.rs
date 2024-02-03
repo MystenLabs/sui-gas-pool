@@ -39,6 +39,15 @@ impl GasPoolRpcClient {
         Ok(())
     }
 
+    pub async fn version(&self) -> Result<String, reqwest::Error> {
+        self.client
+            .get(format!("{}/version", self.server_address))
+            .send()
+            .await?
+            .text()
+            .await
+    }
+
     pub async fn reserve_gas(
         &self,
         gas_budget: u64,

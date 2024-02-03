@@ -58,6 +58,10 @@ pub enum CliCommand {
         #[clap(long, help = "Full URL of the station RPC server")]
         station_rpc_url: String,
     },
+    GetStationVersion {
+        #[clap(long, help = "Full URL of the station RPC server")]
+        station_rpc_url: String,
+    },
 }
 
 impl ToolCommand {
@@ -105,6 +109,11 @@ impl ToolCommand {
                     let station_client = GasPoolRpcClient::new(station_rpc_url);
                     station_client.check_health().await.unwrap();
                     println!("Station server is healthy");
+                }
+                CliCommand::GetStationVersion { station_rpc_url } => {
+                    let station_client = GasPoolRpcClient::new(station_rpc_url);
+                    let version = station_client.version().await.unwrap();
+                    println!("Station server version: {}", version);
                 }
             },
         }
