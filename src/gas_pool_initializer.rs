@@ -158,6 +158,11 @@ impl CoinSplitEnv {
     }
 }
 
+enum RunMode {
+    Init,
+    Refresh,
+}
+
 pub struct GasPoolInitializer {
     _task_handle: JoinHandle<()>,
     // This is always Some. It is None only after the drop method is called.
@@ -177,8 +182,17 @@ impl GasPoolInitializer {
         coin_init_config: CoinInitConfig,
         signer: Arc<dyn TxSigner>,
     ) -> Self {
-        // Always run once at the beginning to make sure we have enough coins.
-        Self::run_once(fullnode_url.as_str(), &storage, &coin_init_config, &signer).await;
+        if !storage.is_initialized(signer.get_address()).await.unwrap() {
+            // If the pool has never been initialized, always run once at the beginning to make sure we have enough coins.
+            Self::run_once(
+                fullnode_url.as_str(),
+                &storage,
+                RunMode::Init,
+                coin_init_config.target_init_balance,
+                &signer,
+            )
+            .await;
+        }
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
         let _task_handle = tokio::spawn(Self::run(
             fullnode_url,
@@ -209,26 +223,32 @@ impl GasPoolInitializer {
                 }
             }
             info!("Coin init task waking up and looking for new coins to initialize");
-            Self::run_once(fullnode_url.as_str(), &storage, &coin_init_config, &signer).await;
+            Self::run_once(
+                fullnode_url.as_str(),
+                &storage,
+                RunMode::Refresh,
+                coin_init_config.target_init_balance,
+                &signer,
+            )
+            .await;
         }
     }
 
     async fn run_once(
         fullnode_url: &str,
         storage: &Arc<dyn Storage>,
-        coin_init_config: &CoinInitConfig,
+        mode: RunMode,
+        target_init_coin_balance: u64,
         signer: &Arc<dyn TxSigner>,
     ) {
         let start = Instant::now();
         let sponsor_address = signer.get_address();
-        // If we have never initialized the gas pool, we must at least do it once.
-        let force_init = !storage.is_initialized(sponsor_address).await.unwrap();
         let sui_client = SuiClient::new(fullnode_url).await;
-        let balance_threshold = if force_init {
+        let balance_threshold = if matches!(mode, RunMode::Init) {
             info!("The pool has never been initialized. Initializing it for the first time");
             0
         } else {
-            coin_init_config.target_init_balance * NEW_COIN_BALANCE_FACTOR_THRESHOLD
+            target_init_coin_balance * NEW_COIN_BALANCE_FACTOR_THRESHOLD
         };
         let coins = sui_client
             .get_all_owned_sui_coins_above_balance_threshold(sponsor_address, balance_threshold)
@@ -249,7 +269,7 @@ impl GasPoolInitializer {
         let result = Self::split_gas_coins(
             coins,
             CoinSplitEnv {
-                target_init_coin_balance: coin_init_config.target_init_balance,
+                target_init_coin_balance,
                 gas_cost_per_object,
                 signer: signer.clone(),
                 sui_client,
