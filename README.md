@@ -32,8 +32,6 @@ An HTTP server is implemented to take the following 3 requests:
 pub struct ReserveGasRequest {
     /// Desired gas budget. The response will contain gas coins that have total balance >= gas_budget.
     pub gas_budget: u64,
-    /// If request_sponsor is None, the station will pick one automatically.
-    pub request_sponsor: Option<SuiAddress>,
     /// The reserved gas coins will be released back to the pool after this duration expires.
     pub reserve_duration_secs: u64,
 }

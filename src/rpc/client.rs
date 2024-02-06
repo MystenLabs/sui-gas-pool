@@ -51,12 +51,10 @@ impl GasPoolRpcClient {
     pub async fn reserve_gas(
         &self,
         gas_budget: u64,
-        request_sponsor: Option<SuiAddress>,
         reserve_duration_secs: u64,
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         let request = ReserveGasRequest {
             gas_budget,
-            request_sponsor,
             reserve_duration_secs,
         };
         let mut headers = HeaderMap::new();

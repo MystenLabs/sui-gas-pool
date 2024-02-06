@@ -17,7 +17,6 @@ pub const MAX_DURATION_S: u64 = 10 * 60;
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ReserveGasRequest {
     pub gas_budget: u64,
-    pub request_sponsor: Option<SuiAddress>,
     pub reserve_duration_secs: u64,
 }
 

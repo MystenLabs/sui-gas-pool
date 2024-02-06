@@ -16,20 +16,20 @@ mod tests {
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         let (sponsor1, _res_id1, gas_coins) = station
-            .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 3);
         assert_eq!(station.query_pool_available_coin_count().await, 7);
         let (sponsor2, _res_id2, gas_coins) = station
-            .reserve_gas(None, MIST_PER_SUI * 7, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 7, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 7);
         assert_eq!(sponsor1, sponsor2);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
-            .reserve_gas(None, 1, Duration::from_secs(10))
+            .reserve_gas(1, Duration::from_secs(10))
             .await
             .is_err());
     }
@@ -39,18 +39,18 @@ mod tests {
         let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         assert!(station
-            .reserve_gas(None, MIST_PER_SUI + 1, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI + 1, Duration::from_secs(10))
             .await
             .is_err());
 
         let (sponsor, reservation_id, gas_coins) = station
-            .reserve_gas(None, MIST_PER_SUI, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
-            .reserve_gas(None, 1, Duration::from_secs(10))
+            .reserve_gas(1, Duration::from_secs(10))
             .await
             .is_err());
 
@@ -68,13 +68,13 @@ mod tests {
         let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
-            .reserve_gas(None, MIST_PER_SUI, Duration::from_secs(1))
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(1))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
-            .reserve_gas(None, 1, Duration::from_secs(1))
+            .reserve_gas(1, Duration::from_secs(1))
             .await
             .is_err());
         // Sleep a little longer to give it enough time to expire.
@@ -86,7 +86,7 @@ mod tests {
             .await
             .is_err());
         station
-            .reserve_gas(None, 1, Duration::from_secs(1))
+            .reserve_gas(1, Duration::from_secs(1))
             .await
             .unwrap();
     }
@@ -98,7 +98,7 @@ mod tests {
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
-            .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 3);
@@ -129,12 +129,12 @@ mod tests {
             start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id1, gas_coins1) = station
-            .reserve_gas(None, MIST_PER_SUI * 3, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins1.len(), 3);
         let (_, _res_id2, gas_coins2) = station
-            .reserve_gas(None, MIST_PER_SUI, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins2.len(), 1);

@@ -59,7 +59,7 @@ impl BenchmarkMode {
                 loop {
                     let now = Instant::now();
                     let budget = rng.gen_range(1_000_000u64..100_000_000u64);
-                    let result = client.reserve_gas(budget, None, reserve_duration_sec).await;
+                    let result = client.reserve_gas(budget, reserve_duration_sec).await;
                     let (sponsor, reservation_id, gas_coins) = match result {
                         Ok(r) => r,
                         Err(err) => {

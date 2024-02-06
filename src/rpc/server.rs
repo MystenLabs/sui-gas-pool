@@ -19,7 +19,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_types::base_types::SuiAddress;
 use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
@@ -131,7 +130,6 @@ async fn reserve_gas(
     }
     let ReserveGasRequest {
         gas_budget,
-        request_sponsor,
         reserve_duration_secs,
     } = payload;
     server
@@ -146,7 +144,6 @@ async fn reserve_gas(
     tokio::task::spawn(reserve_gas_impl(
         server.gas_station.clone(),
         server.metrics.clone(),
-        request_sponsor,
         gas_budget,
         reserve_duration_secs,
     ))
@@ -165,16 +162,11 @@ async fn reserve_gas(
 async fn reserve_gas_impl(
     gas_station: Arc<GasPool>,
     metrics: Arc<GasPoolRpcMetrics>,
-    request_sponsor: Option<SuiAddress>,
     gas_budget: u64,
     reserve_duration_secs: u64,
 ) -> (StatusCode, Json<ReserveGasResponse>) {
     match gas_station
-        .reserve_gas(
-            request_sponsor,
-            gas_budget,
-            Duration::from_secs(reserve_duration_secs),
-        )
+        .reserve_gas(gas_budget, Duration::from_secs(reserve_duration_secs))
         .await
     {
         Ok((sponsor, reservation_id, gas_coins)) => {

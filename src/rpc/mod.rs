@@ -22,14 +22,11 @@ mod tests {
         client.check_health().await.unwrap();
 
         let (sponsor, reservation_id, gas_coins) =
-            client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
+            client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
         assert_eq!(gas_coins.len(), 1);
 
         // We can no longer request all balance given one is loaned out above.
-        assert!(client
-            .reserve_gas(MIST_PER_SUI * 10, None, 10)
-            .await
-            .is_err());
+        assert!(client.reserve_gas(MIST_PER_SUI * 10, 10).await.is_err());
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         let effects = client
@@ -47,12 +44,11 @@ mod tests {
         let client = server.get_local_client();
         client.check_health().await.unwrap();
 
-        let (_sponsor, _res_id, gas_coins) =
-            client.reserve_gas(MIST_PER_SUI, None, 10).await.unwrap();
+        let (_sponsor, _res_id, gas_coins) = client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
         assert_eq!(gas_coins.len(), 1);
 
         // Change the auth secret used in the client.
         std::env::set_var(AUTH_ENV_NAME, "b");
-        assert!(client.reserve_gas(MIST_PER_SUI, None, 10).await.is_err());
+        assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_err());
     }
 }
