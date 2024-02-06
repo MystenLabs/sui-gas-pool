@@ -182,7 +182,7 @@ impl GasPoolInitializer {
         coin_init_config: CoinInitConfig,
         signer: Arc<dyn TxSigner>,
     ) -> Self {
-        if !storage.is_initialized(signer.get_address()).await.unwrap() {
+        if !storage.is_initialized().await.unwrap() {
             // If the pool has never been initialized, always run once at the beginning to make sure we have enough coins.
             Self::run_once(
                 fullnode_url.as_str(),
@@ -280,10 +280,7 @@ impl GasPoolInitializer {
         )
         .await;
         for chunk in result.chunks(5000) {
-            storage
-                .add_new_coins(sponsor_address, chunk.to_vec())
-                .await
-                .unwrap();
+            storage.add_new_coins(chunk.to_vec()).await.unwrap();
         }
         info!(
             "New coin initialization took {:?}s",
@@ -335,9 +332,8 @@ mod tests {
     async fn test_basic_init_flow() {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
-        let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing().await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let _ = GasPoolInitializer::start(
             fullnode_url,
             storage.clone(),
@@ -348,16 +344,15 @@ mod tests {
             signer,
         )
         .await;
-        assert!(storage.get_available_coin_count(sponsor).await.unwrap() > 900);
+        assert!(storage.get_available_coin_count().await.unwrap() > 900);
     }
 
     #[tokio::test]
     async fn test_init_non_even_split() {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
-        let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing().await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let target_init_balance = 12345 * MIST_PER_SUI;
         let _ = GasPoolInitializer::start(
             fullnode_url,
@@ -369,7 +364,7 @@ mod tests {
             signer,
         )
         .await;
-        assert!(storage.get_available_coin_count(sponsor).await.unwrap() > 800);
+        assert!(storage.get_available_coin_count().await.unwrap() > 800);
     }
 
     #[tokio::test]
@@ -378,7 +373,7 @@ mod tests {
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
-        let storage = connect_storage_for_testing().await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let _init_task = GasPoolInitializer::start(
             fullnode_url,
             storage.clone(),
@@ -389,8 +384,8 @@ mod tests {
             signer,
         )
         .await;
-        assert!(storage.is_initialized(sponsor).await.unwrap());
-        let available_coin_count = storage.get_available_coin_count(sponsor).await.unwrap();
+        assert!(storage.is_initialized().await.unwrap());
+        let available_coin_count = storage.get_available_coin_count().await.unwrap();
 
         // Transfer some new SUI into the sponsor account.
         let new_addr = *cluster
@@ -409,7 +404,7 @@ mod tests {
         cluster.sign_and_execute_transaction(&tx_data).await;
         // Give it some time for the task to pick up the new coin and split it.
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-        let new_available_coin_count = storage.get_available_coin_count(sponsor).await.unwrap();
+        let new_available_coin_count = storage.get_available_coin_count().await.unwrap();
         assert!(new_available_coin_count > available_coin_count + 100);
     }
 }

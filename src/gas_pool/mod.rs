@@ -20,14 +20,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 3);
-        assert_eq!(station.query_pool_available_coin_count(sponsor1).await, 7);
+        assert_eq!(station.query_pool_available_coin_count().await, 7);
         let (sponsor2, _res_id2, gas_coins) = station
             .reserve_gas(None, MIST_PER_SUI * 7, Duration::from_secs(10))
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 7);
         assert_eq!(sponsor1, sponsor2);
-        assert_eq!(station.query_pool_available_coin_count(sponsor1).await, 0);
+        assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
             .reserve_gas(None, 1, Duration::from_secs(10))
             .await
@@ -48,7 +48,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
-        assert_eq!(station.query_pool_available_coin_count(sponsor).await, 0);
+        assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
             .reserve_gas(None, 1, Duration::from_secs(10))
             .await
@@ -60,7 +60,7 @@ mod tests {
             .await
             .unwrap();
         assert!(effects.status().is_ok());
-        assert_eq!(station.query_pool_available_coin_count(sponsor).await, 1);
+        assert_eq!(station.query_pool_available_coin_count().await, 1);
     }
 
     #[tokio::test]
@@ -72,14 +72,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
-        assert_eq!(station.query_pool_available_coin_count(sponsor).await, 0);
+        assert_eq!(station.query_pool_available_coin_count().await, 0);
         assert!(station
             .reserve_gas(None, 1, Duration::from_secs(1))
             .await
             .is_err());
         // Sleep a little longer to give it enough time to expire.
         tokio::time::sleep(Duration::from_secs(5)).await;
-        assert_eq!(station.query_pool_available_coin_count(sponsor).await, 1);
+        assert_eq!(station.query_pool_available_coin_count().await, 1);
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         assert!(station
             .execute_transaction(reservation_id, tx_data, user_sig)

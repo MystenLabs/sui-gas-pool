@@ -14,20 +14,38 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
+use tracing::info;
 
 pub struct RedisStorage {
     conn_manager: ConnectionManager,
+    sponsor_address: SuiAddress,
     metrics: Arc<StorageMetrics>,
 }
 
 impl RedisStorage {
-    pub async fn new(redis_url: &str, metrics: Arc<StorageMetrics>) -> Self {
+    pub async fn new(
+        redis_url: &str,
+        sponsor_address: SuiAddress,
+        metrics: Arc<StorageMetrics>,
+    ) -> Self {
         let client = redis::Client::open(redis_url).unwrap();
         let conn_manager = ConnectionManager::new(client).await.unwrap();
-        Self {
+        let storage = Self {
             conn_manager,
+            sponsor_address,
             metrics,
-        }
+        };
+        let available_coin_count = storage.get_available_coin_count().await.unwrap();
+        info!(
+            "Gas pool available coin count for {:?}: {:?}",
+            sponsor_address, available_coin_count
+        );
+        storage
+            .metrics
+            .gas_pool_available_gas_coin_count
+            .with_label_values(&[&sponsor_address.to_string()])
+            .set(available_coin_count as i64);
+        storage
     }
 }
 
@@ -35,7 +53,6 @@ impl RedisStorage {
 impl Storage for RedisStorage {
     async fn reserve_gas_coins(
         &self,
-        sponsor_address: SuiAddress,
         target_budget: u64,
         reserved_duration_ms: u64,
     ) -> anyhow::Result<(ReservationID, Vec<GasCoin>)> {
@@ -47,13 +64,13 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         let (reservation_id, coins): (ReservationID, Vec<String>) =
             ScriptManager::reserve_gas_coins_script()
-                .arg(sponsor_address.to_string())
+                .arg(self.sponsor_address.to_string())
                 .arg(target_budget)
                 .arg(expiration_time)
                 .invoke_async(&mut conn)
                 .await?;
         assert!(!coins.is_empty());
-        let gas_coins = coins
+        let gas_coins: Vec<_> = coins
             .into_iter()
             .map(|s| {
                 // Each coin is in the form of: balance,object_id,version,digest
@@ -69,20 +86,20 @@ impl Storage for RedisStorage {
             })
             .collect();
 
+        self.metrics
+            .gas_pool_available_gas_coin_count
+            .with_label_values(&[&self.sponsor_address.to_string()])
+            .sub(gas_coins.len() as i64);
         self.metrics.num_successful_reserve_gas_coins_requests.inc();
         Ok((reservation_id, gas_coins))
     }
 
-    async fn ready_for_execution(
-        &self,
-        sponsor_address: SuiAddress,
-        reservation_id: ReservationID,
-    ) -> anyhow::Result<()> {
+    async fn ready_for_execution(&self, reservation_id: ReservationID) -> anyhow::Result<()> {
         self.metrics.num_ready_for_execution_requests.inc();
 
         let mut conn = self.conn_manager.clone();
         ScriptManager::ready_for_execution_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .arg(reservation_id)
             .invoke_async::<_, ()>(&mut conn)
             .await?;
@@ -93,11 +110,7 @@ impl Storage for RedisStorage {
         Ok(())
     }
 
-    async fn add_new_coins(
-        &self,
-        sponsor_address: SuiAddress,
-        new_coins: Vec<GasCoin>,
-    ) -> anyhow::Result<()> {
+    async fn add_new_coins(&self, new_coins: Vec<GasCoin>) -> anyhow::Result<()> {
         self.metrics.num_add_new_coins_requests.inc();
         let formatted_coins = new_coins
             .iter()
@@ -117,22 +130,26 @@ impl Storage for RedisStorage {
 
         let mut conn = self.conn_manager.clone();
         ScriptManager::add_new_coins_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .arg(serde_json::to_string(&formatted_coins)?)
             .invoke_async(&mut conn)
             .await?;
 
+        self.metrics
+            .gas_pool_available_gas_coin_count
+            .with_label_values(&[&self.sponsor_address.to_string()])
+            .add(new_coins.len() as i64);
         self.metrics.num_successful_add_new_coins_requests.inc();
         Ok(())
     }
 
-    async fn expire_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<Vec<ObjectID>> {
+    async fn expire_coins(&self) -> anyhow::Result<Vec<ObjectID>> {
         self.metrics.num_expire_coins_requests.inc();
 
         let now = Utc::now().timestamp_millis() as u64;
         let mut conn = self.conn_manager.clone();
         let expired_coin_strings: Vec<String> = ScriptManager::expire_coins_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .arg(now)
             .invoke_async(&mut conn)
             .await?;
@@ -146,19 +163,10 @@ impl Storage for RedisStorage {
         Ok(expired_coin_ids)
     }
 
-    async fn remove_all_available_coins(&self, sponsor_address: SuiAddress) -> anyhow::Result<()> {
-        let mut conn = self.conn_manager.clone();
-        ScriptManager::remove_all_available_coins_script()
-            .arg(sponsor_address.to_string())
-            .invoke_async::<_, ()>(&mut conn)
-            .await?;
-        Ok(())
-    }
-
-    async fn is_initialized(&self, sponsor_address: SuiAddress) -> anyhow::Result<bool> {
+    async fn is_initialized(&self) -> anyhow::Result<bool> {
         let mut conn = self.conn_manager.clone();
         let result = ScriptManager::get_is_initialized_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .invoke_async::<_, bool>(&mut conn)
             .await?;
         Ok(result)
@@ -179,30 +187,30 @@ impl Storage for RedisStorage {
             .unwrap();
     }
 
-    async fn get_available_coin_count(&self, sponsor_address: SuiAddress) -> anyhow::Result<usize> {
+    async fn get_available_coin_count(&self) -> anyhow::Result<usize> {
         let mut conn = self.conn_manager.clone();
         let count = ScriptManager::get_available_coin_count_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .invoke_async::<_, usize>(&mut conn)
             .await?;
         Ok(count)
     }
 
     #[cfg(test)]
-    async fn get_available_coin_total_balance(&self, sponsor_address: SuiAddress) -> u64 {
+    async fn get_available_coin_total_balance(&self) -> u64 {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_available_coin_total_balance_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .invoke_async::<_, u64>(&mut conn)
             .await
             .unwrap()
     }
 
     #[cfg(test)]
-    async fn get_reserved_coin_count(&self, sponsor_address: SuiAddress) -> usize {
+    async fn get_reserved_coin_count(&self) -> usize {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_reserved_coin_count_script()
-            .arg(sponsor_address.to_string())
+            .arg(self.sponsor_address.to_string())
             .invoke_async::<_, usize>(&mut conn)
             .await
             .unwrap()

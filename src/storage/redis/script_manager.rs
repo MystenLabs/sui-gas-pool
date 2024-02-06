@@ -7,8 +7,6 @@ const READY_FOR_EXECUTION_SCRIPT: &str = include_str!("lua_scripts/ready_for_exe
 const EXPIRE_COINS_SCRIPT: &str = include_str!("lua_scripts/expire_coins.lua");
 const GET_AVAILABLE_COIN_COUNT_SCRIPT: &str =
     include_str!("lua_scripts/get_available_coin_count.lua");
-const REMOVE_ALL_AVAILABLE_COINS_SCRIPT: &str =
-    include_str!("lua_scripts/remove_all_available_coins.lua");
 const GET_IS_INITIALIZED_SCRIPT: &str = include_str!("lua_scripts/get_is_initialized.lua");
 
 #[cfg(test)]
@@ -43,11 +41,6 @@ impl ScriptManager {
 
     pub fn get_available_coin_count_script() -> &'static Script {
         static SCRIPT: Lazy<Script> = Lazy::new(|| Script::new(GET_AVAILABLE_COIN_COUNT_SCRIPT));
-        Lazy::force(&SCRIPT)
-    }
-
-    pub fn remove_all_available_coins_script() -> &'static Script {
-        static SCRIPT: Lazy<Script> = Lazy::new(|| Script::new(REMOVE_ALL_AVAILABLE_COINS_SCRIPT));
         Lazy::force(&SCRIPT)
     }
 

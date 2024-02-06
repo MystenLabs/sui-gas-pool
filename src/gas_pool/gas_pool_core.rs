@@ -51,16 +51,6 @@ impl GasPool {
             sui_client: SuiClient::new(fullnode_url).await,
             metrics,
         };
-        let sponsor_address = pool.signer.get_address();
-        let available_coin_count = pool.query_pool_available_coin_count(sponsor_address).await;
-        info!(
-            "Gas pool available coin count for {:?}: {:?}",
-            sponsor_address, available_coin_count
-        );
-        pool.metrics
-            .gas_pool_available_gas_coin_count
-            .with_label_values(&[&sponsor_address.to_string()])
-            .set(available_coin_count as i64);
         Arc::new(pool)
     }
 
@@ -81,15 +71,11 @@ impl GasPool {
         };
         let (reservation_id, gas_coins) = self
             .gas_pool_store
-            .reserve_gas_coins(sponsor, gas_budget, duration.as_millis() as u64)
+            .reserve_gas_coins(gas_budget, duration.as_millis() as u64)
             .await?;
         self.metrics
             .reserved_gas_coin_count_per_request
             .observe(gas_coins.len() as u64);
-        self.metrics
-            .gas_pool_available_gas_coin_count
-            .with_label_values(&[&sponsor.to_string()])
-            .sub(gas_coins.len() as i64);
         Ok((
             sponsor,
             reservation_id,
@@ -120,7 +106,7 @@ impl GasPool {
             "Payment coins in transaction: {:?}", payment
         );
         self.gas_pool_store
-            .ready_for_execution(sponsor, reservation_id)
+            .ready_for_execution(reservation_id)
             .await?;
         debug!(?reservation_id, "Reservation is ready for execution");
 
@@ -145,7 +131,7 @@ impl GasPool {
             .observe(elapsed as u64);
 
         // Regardless of whether the transaction succeeded, we need to release the coins.
-        let release_count = self.release_gas_coins(sponsor, payment).await;
+        let release_count = self.release_gas_coins(payment).await;
         if payment_count > release_count {
             let smashed_coin_count = payment_count - release_count;
             info!(
@@ -198,15 +184,8 @@ impl GasPool {
     }
 
     /// Returns number of coins added back to the pool.
-    async fn release_gas_coins(
-        &self,
-        sponsor_address: SuiAddress,
-        gas_coins: Vec<ObjectID>,
-    ) -> usize {
-        debug!(
-            "Trying to release gas coins. Sponsor: {:?}, coins: {:?}",
-            sponsor_address, gas_coins
-        );
+    async fn release_gas_coins(&self, gas_coins: Vec<ObjectID>) -> usize {
+        debug!("Trying to release gas coins: {:?}", gas_coins);
 
         let latest = self.sui_client.get_latest_gas_objects(gas_coins).await;
         debug!("Latest coin state: {:?}", latest);
@@ -214,15 +193,11 @@ impl GasPool {
 
         retry_forever!(async {
             self.gas_pool_store
-                .add_new_coins(sponsor_address, updated_coins.clone())
+                .add_new_coins(updated_coins.clone())
                 .await
                 .tap_err(|err| error!("Failed to call update_gas_coins on storage: {:?}", err))
         })
         .unwrap();
-        self.metrics
-            .gas_pool_available_gas_coin_count
-            .with_label_values(&[&sponsor_address.to_string()])
-            .add(updated_coins.len() as i64);
         updated_coins.len()
     }
 
@@ -231,18 +206,15 @@ impl GasPool {
         mut cancel_receiver: tokio::sync::oneshot::Receiver<()>,
     ) -> JoinHandle<()> {
         tokio::task::spawn(async move {
-            let sponsor_address = self.signer.get_address();
             loop {
-                let expire_results = self.gas_pool_store.expire_coins(sponsor_address).await;
+                let expire_results = self.gas_pool_store.expire_coins().await;
                 let unlocked_coins = expire_results.unwrap_or_else(|err| {
                     error!("Failed to call expire_coins to the storage: {:?}", err);
                     vec![]
                 });
                 if !unlocked_coins.is_empty() {
                     debug!("Coins that are expired: {:?}", unlocked_coins);
-                    let count = self
-                        .release_gas_coins(sponsor_address, unlocked_coins)
-                        .await;
+                    let count = self.release_gas_coins(unlocked_coins).await;
                     info!("Released {:?} coins after expiration", count);
                 }
                 tokio::select! {
@@ -256,9 +228,9 @@ impl GasPool {
         })
     }
 
-    pub async fn query_pool_available_coin_count(&self, sponsor_address: SuiAddress) -> usize {
+    pub async fn query_pool_available_coin_count(&self) -> usize {
         self.gas_pool_store
-            .get_available_coin_count(sponsor_address)
+            .get_available_coin_count()
             .await
             .unwrap()
     }
