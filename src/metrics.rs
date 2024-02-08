@@ -143,6 +143,7 @@ impl GasPoolCoreMetrics {
 
 pub struct StorageMetrics {
     pub gas_pool_available_gas_coin_count: IntGaugeVec,
+    pub gas_pool_available_gas_total_balance: IntGaugeVec,
 
     pub num_reserve_gas_coins_requests: IntCounter,
     pub num_successful_reserve_gas_coins_requests: IntCounter,
@@ -160,6 +161,13 @@ impl StorageMetrics {
             gas_pool_available_gas_coin_count: register_int_gauge_vec_with_registry!(
                 "gas_pool_available_gas_coin_count",
                 "Current number of available gas coins for reservation",
+                &["sponsor"],
+                registry,
+            )
+            .unwrap(),
+            gas_pool_available_gas_total_balance: register_int_gauge_vec_with_registry!(
+                "gas_pool_available_gas_total_balance",
+                "Current total balance of available gas coins for reservation",
                 &["sponsor"],
                 registry,
             )

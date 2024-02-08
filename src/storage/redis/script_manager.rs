@@ -8,10 +8,9 @@ const EXPIRE_COINS_SCRIPT: &str = include_str!("lua_scripts/expire_coins.lua");
 const GET_AVAILABLE_COIN_COUNT_SCRIPT: &str =
     include_str!("lua_scripts/get_available_coin_count.lua");
 const GET_IS_INITIALIZED_SCRIPT: &str = include_str!("lua_scripts/get_is_initialized.lua");
-
-#[cfg(test)]
 const GET_AVAILABLE_COIN_TOTAL_BALANCE_SCRIPT: &str =
     include_str!("lua_scripts/get_available_coin_total_balance.lua");
+
 #[cfg(test)]
 const GET_RESERVED_COIN_COUNT_SCRIPT: &str =
     include_str!("lua_scripts/get_reserved_coin_count.lua");
@@ -49,8 +48,6 @@ impl ScriptManager {
         Lazy::force(&SCRIPT)
     }
 
-    // This needs to be test only because it's really expensive to call in production.
-    #[cfg(test)]
     pub fn get_available_coin_total_balance_script() -> &'static Script {
         static SCRIPT: Lazy<Script> =
             Lazy::new(|| Script::new(GET_AVAILABLE_COIN_TOTAL_BALANCE_SCRIPT));

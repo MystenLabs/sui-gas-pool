@@ -46,7 +46,6 @@ pub trait Storage: Sync + Send {
 
     async fn get_available_coin_count(&self) -> anyhow::Result<usize>;
 
-    #[cfg(test)]
     async fn get_available_coin_total_balance(&self) -> u64;
 
     #[cfg(test)]
