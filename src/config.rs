@@ -34,7 +34,8 @@ pub struct GasStationConfig {
     pub metrics_port: u16,
     pub gas_pool_config: GasPoolStorageConfig,
     pub fullnode_url: String,
-    pub coin_init_config: CoinInitConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coin_init_config: Option<CoinInitConfig>,
 }
 
 impl Config for GasStationConfig {}
@@ -48,7 +49,7 @@ impl Default for GasStationConfig {
             metrics_port: DEFAULT_METRICS_PORT,
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
-            coin_init_config: CoinInitConfig::default(),
+            coin_init_config: Some(CoinInitConfig::default()),
         }
     }
 }
