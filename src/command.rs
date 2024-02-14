@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::GasStationConfig;
+use crate::config::{GasStationConfig, DEFAULT_DAILY_GAS_LIMIT};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics, StorageMetrics};
@@ -43,6 +43,7 @@ impl Command {
             rpc_port,
             metrics_port,
             coin_init_config,
+            daily_gas_limit,
         } = config;
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
@@ -73,7 +74,14 @@ impl Command {
         };
 
         let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
-        let container = GasPoolContainer::new(signer, storage, &fullnode_url, core_metrics).await;
+        let container = GasPoolContainer::new(
+            signer,
+            storage,
+            &fullnode_url,
+            core_metrics,
+            daily_gas_limit.unwrap_or(DEFAULT_DAILY_GAS_LIMIT),
+        )
+        .await;
 
         let rpc_metrics = GasPoolRpcMetrics::new(&prometheus_registry);
         let server = GasPoolServer::new(

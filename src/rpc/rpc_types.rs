@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
-// 10 SUI.
-pub const MAX_BUDGET: u64 = 10_000_000_000;
+// 2 SUI.
+pub const MAX_BUDGET: u64 = 2_000_000_000;
 
 // 10 mins.
 pub const MAX_DURATION_S: u64 = 10 * 60;

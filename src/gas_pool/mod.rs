@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod gas_pool_core;
+mod gas_usage_cap;
 
 #[cfg(test)]
 mod tests {
