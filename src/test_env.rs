@@ -44,7 +44,7 @@ pub async fn start_gas_station(
 ) -> (TestCluster, GasPoolContainer) {
     let (test_cluster, signer) = start_sui_cluster(init_gas_amounts).await;
     let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
-    let storage = connect_storage_for_testing(signer.get_address()).await;
+    let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
     GasPoolInitializer::start(
         fullnode_url.clone(),
         storage.clone(),

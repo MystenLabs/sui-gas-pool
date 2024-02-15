@@ -7,7 +7,6 @@ use serde_with::serde_as;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use sui_config::Config;
-use sui_types::base_types::SuiAddress;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
 
@@ -76,13 +75,8 @@ impl Default for GasPoolStorageConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TxSignerConfig {
-    Local {
-        keypair: SuiKeyPair,
-    },
-    Sidecar {
-        sponsor_address: SuiAddress,
-        sidecar_url: String,
-    },
+    Local { keypair: SuiKeyPair },
+    Sidecar { sidecar_url: String },
 }
 
 impl Default for TxSignerConfig {
@@ -98,10 +92,7 @@ impl TxSignerConfig {
     pub fn new_signer(self) -> Arc<dyn TxSigner> {
         match self {
             TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
-            TxSignerConfig::Sidecar {
-                sponsor_address,
-                sidecar_url,
-            } => SidecarTxSigner::new(sponsor_address, sidecar_url),
+            TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url),
         }
     }
 }

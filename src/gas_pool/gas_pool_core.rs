@@ -20,10 +20,6 @@ use sui_types::transaction::{
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
-use tokio_retry::strategy::ExponentialBackoff;
-#[cfg(not(test))]
-use tokio_retry::strategy::FixedInterval;
-use tokio_retry::Retry;
 use tracing::{debug, error, info};
 
 use super::gas_usage_cap::GasUsageCap;
@@ -69,7 +65,7 @@ impl GasPool {
         duration: Duration,
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         self.gas_usage_cap.check_usage().await?;
-        let sponsor = self.signer.get_address();
+        let sponsor = self.signer.get_address().await?;
         let (reservation_id, gas_coins) = self
             .gas_pool_store
             .reserve_gas_coins(gas_budget, duration.as_millis() as u64)
@@ -91,7 +87,7 @@ impl GasPool {
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let sponsor = tx_data.gas_data().owner;
-        if !self.signer.is_valid_address(&sponsor) {
+        if !self.signer.is_valid_address(&sponsor).await? {
             bail!("Sponsor {:?} is not registered", sponsor);
         };
         Self::check_transaction_validity(&tx_data)?;
@@ -111,24 +107,10 @@ impl GasPool {
             .await?;
         debug!(?reservation_id, "Reservation is ready for execution");
 
-        let sponsor_sig = retry_with_max_attempts!(
-            async {
-                self.signer
-                    .sign_transaction(&tx_data)
-                    .await
-                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
-            },
-            3
-        )?;
-        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
-        let cur_time = std::time::Instant::now();
-        let response = self.sui_client.execute_transaction(tx, 3).await;
-        let elapsed = cur_time.elapsed().as_millis();
-        self.metrics
-            .transaction_execution_latency_ms
-            .observe(elapsed as u64);
-
+        let response = self.execute_transaction_impl(tx_data, user_sig).await;
         // Regardless of whether the transaction succeeded, we need to release the coins.
+        // Otherwise we loose track of them. This is because `ready_for_execution` already takes
+        // the coins out of the pool and will not be covered by the auto-release mechanism.
         let release_count = self.release_gas_coins(payment).await;
         if payment_count > release_count {
             let smashed_coin_count = payment_count - release_count;
@@ -145,15 +127,39 @@ impl GasPool {
             ?reservation_id,
             "Released {:?} coins after transaction execution", release_count
         );
-        if let Ok(effects) = &response {
-            let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
-            let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
-            self.metrics
-                .daily_gas_usage
-                .with_label_values(&[&sponsor.to_string()])
-                .set(new_daily_usage);
-        }
+
         response
+    }
+
+    async fn execute_transaction_impl(
+        &self,
+        tx_data: TransactionData,
+        user_sig: GenericSignature,
+    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+        let sponsor = tx_data.gas_data().owner;
+        let sponsor_sig = retry_with_max_attempts!(
+            async {
+                self.signer
+                    .sign_transaction(&tx_data)
+                    .await
+                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
+            },
+            3
+        )?;
+        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
+        let cur_time = std::time::Instant::now();
+        let effects = self.sui_client.execute_transaction(tx, 3).await?;
+        let elapsed = cur_time.elapsed().as_millis();
+        self.metrics
+            .transaction_execution_latency_ms
+            .observe(elapsed as u64);
+        let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
+        let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
+        self.metrics
+            .daily_gas_usage
+            .with_label_values(&[&sponsor.to_string()])
+            .set(new_daily_usage);
+        Ok(effects)
     }
 
     fn check_transaction_validity(tx_data: &TransactionData) -> anyhow::Result<()> {

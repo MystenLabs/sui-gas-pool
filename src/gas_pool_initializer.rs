@@ -14,6 +14,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+use sui_types::base_types::SuiAddress;
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
 use sui_types::gas_coin::GAS;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
@@ -22,10 +23,6 @@ use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
-#[cfg(not(test))]
-use tokio_retry::strategy::FixedInterval;
-#[cfg(not(test))]
-use tokio_retry::Retry;
 use tracing::{debug, error, info};
 
 /// Any coin owned by the sponsor address with balance above target_init_coin_balance * NEW_COIN_BALANCE_FACTOR_THRESHOLD
@@ -37,6 +34,7 @@ struct CoinSplitEnv {
     target_init_coin_balance: u64,
     gas_cost_per_object: u64,
     signer: Arc<dyn TxSigner>,
+    sponsor_address: SuiAddress,
     sui_client: SuiClient,
     task_queue: Arc<Mutex<VecDeque<JoinHandle<Vec<GasCoin>>>>>,
     total_coin_count: Arc<AtomicUsize>,
@@ -90,9 +88,8 @@ impl CoinSplitEnv {
                 vec![Argument::GasCoin, pure_arg],
             );
             let pt = pt_builder.finish();
-            let sponsor_address = self.signer.get_address();
             let tx_data = TransactionData::new_programmable(
-                sponsor_address,
+                self.sponsor_address,
                 vec![coin.object_ref],
                 pt,
                 budget,
@@ -239,7 +236,7 @@ impl GasPoolInitializer {
         signer: &Arc<dyn TxSigner>,
     ) {
         let start = Instant::now();
-        let sponsor_address = signer.get_address();
+        let sponsor_address = signer.get_address().await.unwrap();
         let sui_client = SuiClient::new(fullnode_url).await;
         let balance_threshold = if matches!(mode, RunMode::Init) {
             info!("The pool has never been initialized. Initializing it for the first time");
@@ -269,6 +266,7 @@ impl GasPoolInitializer {
                 target_init_coin_balance,
                 gas_cost_per_object,
                 signer: signer.clone(),
+                sponsor_address,
                 sui_client,
                 task_queue: Default::default(),
                 total_coin_count,
@@ -330,7 +328,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
         let _ = GasPoolInitializer::start(
             fullnode_url,
             storage.clone(),
@@ -349,7 +347,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
         let target_init_balance = 12345 * MIST_PER_SUI;
         let _ = GasPoolInitializer::start(
             fullnode_url,
@@ -368,9 +366,9 @@ mod tests {
     async fn test_add_new_funds_to_pool() {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
-        let sponsor = signer.get_address();
+        let sponsor = signer.get_address().await.unwrap();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
         let _init_task = GasPoolInitializer::start(
             fullnode_url,
             storage.clone(),

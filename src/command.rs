@@ -58,8 +58,12 @@ impl Command {
 
         let signer = signer_config.new_signer();
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
-        let storage =
-            connect_storage(&gas_pool_config, signer.get_address(), storage_metrics).await;
+        let storage = connect_storage(
+            &gas_pool_config,
+            signer.get_address().await.unwrap(),
+            storage_metrics,
+        )
+        .await;
         let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
             let task = GasPoolInitializer::start(
                 fullnode_url.clone(),

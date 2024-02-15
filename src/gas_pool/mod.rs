@@ -7,9 +7,15 @@ mod gas_usage_cap;
 #[cfg(test)]
 mod tests {
     use crate::test_env::{create_test_transaction, start_gas_station};
+    use shared_crypto::intent::{Intent, IntentMessage};
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-    use sui_types::gas_coin::MIST_PER_SUI;
+    use sui_types::{
+        crypto::{get_account_key_pair, Signature},
+        gas_coin::MIST_PER_SUI,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TransactionData, TransactionKind},
+    };
 
     #[tokio::test]
     async fn test_station_reserve_gas() {
@@ -61,6 +67,32 @@ mod tests {
             .await
             .unwrap();
         assert!(effects.status().is_ok());
+        assert_eq!(station.query_pool_available_coin_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_transaction() {
+        telemetry_subscribers::init_for_testing();
+        let (_test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
+        let station = container.get_gas_pool_arc();
+        let (sponsor, reservation_id, gas_coins) = station
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (sender, keypair) = get_account_key_pair();
+        let tx_kind = TransactionKind::programmable(ProgrammableTransactionBuilder::new().finish());
+        let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+            tx_kind, sender, gas_coins, 1, 1, sponsor,
+        );
+        let user_sig = Signature::new_secure(
+            &IntentMessage::new(Intent::sui_transaction(), &tx_data),
+            &keypair,
+        );
+        let result = station
+            .execute_transaction(reservation_id, tx_data, user_sig.into())
+            .await;
+        println!("{:?}", result);
+        assert!(result.is_err());
         assert_eq!(station.query_pool_available_coin_count().await, 1);
     }
 
