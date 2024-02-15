@@ -7,7 +7,6 @@ use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use std::collections::HashMap;
-use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_json_rpc_types::{
     SuiData, SuiObjectDataOptions, SuiObjectResponse, SuiTransactionBlockEffects,
@@ -23,10 +22,6 @@ use sui_types::transaction::{
 };
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use tap::TapFallible;
-use tokio_retry::strategy::ExponentialBackoff;
-#[cfg(not(test))]
-use tokio_retry::strategy::FixedInterval;
-use tokio_retry::Retry;
 use tracing::{debug, info};
 
 #[derive(Clone)]

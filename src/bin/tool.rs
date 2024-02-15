@@ -94,8 +94,7 @@ impl ToolCommand {
             } => {
                 let signer_config = if with_sidecar_signer {
                     TxSignerConfig::Sidecar {
-                        sponsor_address: get_account_key_pair().0,
-                        sidecar_url: "http://localhost:3000/sign-transaction".to_string(),
+                        sidecar_url: "http://localhost:3000".to_string(),
                     }
                 } else {
                     TxSignerConfig::Local {

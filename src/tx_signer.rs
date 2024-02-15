@@ -4,7 +4,7 @@
 use anyhow::anyhow;
 use fastcrypto::encoding::{Base64, Encoding};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::str::FromStr;
@@ -18,27 +18,30 @@ use sui_types::transaction::TransactionData;
 pub trait TxSigner: Send + Sync {
     async fn sign_transaction(&self, tx_data: &TransactionData)
         -> anyhow::Result<GenericSignature>;
-    fn get_address(&self) -> SuiAddress;
-    fn is_valid_address(&self, address: &SuiAddress) -> bool {
-        self.get_address() == *address
+    async fn get_address(&self) -> anyhow::Result<SuiAddress>;
+    async fn is_valid_address(&self, address: &SuiAddress) -> anyhow::Result<bool> {
+        Ok(self.get_address().await? == *address)
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 struct SignatureResponse {
     signature: String,
 }
 
+#[derive(Deserialize)]
+struct SuiAddressResponse {
+    sui_pubkey_address: SuiAddress,
+}
+
 pub struct SidecarTxSigner {
-    sponsor_address: SuiAddress,
     sidecar_url: String,
     client: Client,
 }
 
 impl SidecarTxSigner {
-    pub fn new(sponsor_address: SuiAddress, sidecar_url: String) -> Arc<Self> {
+    pub fn new(sidecar_url: String) -> Arc<Self> {
         Arc::new(Self {
-            sponsor_address,
             sidecar_url,
             client: Client::new(),
         })
@@ -54,7 +57,7 @@ impl TxSigner for SidecarTxSigner {
         let bytes = Base64::encode(bcs::to_bytes(&tx_data)?);
         let resp = self
             .client
-            .post(self.sidecar_url.clone())
+            .post(format!("{}/{}", self.sidecar_url, "sign-transaction"))
             .header("Content-Type", "application/json")
             .json(&json!({"txBytes": bytes}))
             .send()
@@ -65,8 +68,15 @@ impl TxSigner for SidecarTxSigner {
         Ok(sig)
     }
 
-    fn get_address(&self) -> SuiAddress {
-        self.sponsor_address
+    async fn get_address(&self) -> anyhow::Result<SuiAddress> {
+        let resp = self
+            .client
+            .post(format!("{}/{}", self.sidecar_url, "get-pubkey-address"))
+            .header("Content-Type", "application/json")
+            .send()
+            .await?;
+        let address = resp.json::<SuiAddressResponse>().await?;
+        Ok(address.sui_pubkey_address)
     }
 }
 
@@ -91,7 +101,7 @@ impl TxSigner for TestTxSigner {
         Ok(sponsor_sig)
     }
 
-    fn get_address(&self) -> SuiAddress {
-        (&self.keypair.public()).into()
+    async fn get_address(&self) -> anyhow::Result<SuiAddress> {
+        Ok((&self.keypair.public()).into())
     }
 }
