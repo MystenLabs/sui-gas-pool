@@ -18,14 +18,14 @@ repository = "https://github.com/MystenLabs/sui-gas-station"
 #typed-store = { path = "../sui-upstream/crates/typed-store" }
 #typed-store-derive = { path = "../sui-upstream/crates/typed-store-derive" }
 
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "643831ec3b67bdd2b5f998c0bec1b7c91823351f" }
-mysten-metrics = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "mysten-metrics" }
-sui-config = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "sui-config" }
-sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "sui-json-rpc-types" }
-sui-sdk = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "sui-sdk" }
-sui-types = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "sui-types" }
-shared-crypto = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "shared-crypto" }
-telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "telemetry-subscribers" }
+fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "ea66012b860d9dd152abb7f2156275698ee91126" }
+mysten-metrics = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "mysten-metrics" }
+sui-config = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "sui-config" }
+sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "sui-json-rpc-types" }
+sui-sdk = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "sui-sdk" }
+sui-types = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "sui-types" }
+shared-crypto = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "shared-crypto" }
+telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "telemetry-subscribers" }
 
 anyhow = "1.0.75"
 async-trait = "0.1.51"
@@ -57,8 +57,8 @@ serde_json = "1.0.108"
 [dev-dependencies]
 rand = "0.8.5"
 
-sui-swarm-config = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "sui-swarm-config" }
-test-cluster = { git = "https://github.com/MystenLabs/sui", rev = "bae8802fe3ea3a12f7deeea5d0c7b6f82844c73c", package = "test-cluster" }
+sui-swarm-config = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "sui-swarm-config" }
+test-cluster = { git = "https://github.com/MystenLabs/sui", rev = "f6f7fb5717794de1e16bcf99a38ac4b1a3b6a409", package = "test-cluster" }
 
 [profile.release]
 panic = "abort"
