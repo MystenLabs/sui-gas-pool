@@ -89,6 +89,7 @@ pub struct GasPoolCoreMetrics {
     pub reserved_gas_coin_count_per_request: Histogram,
     pub transaction_execution_latency_ms: Histogram,
     pub num_gas_pool_invariant_violations: IntCounter,
+    pub daily_gas_usage: IntGaugeVec,
 }
 
 impl GasPoolCoreMetrics {
@@ -124,6 +125,13 @@ impl GasPoolCoreMetrics {
                 registry,
             )
             .unwrap(),
+            daily_gas_usage: register_int_gauge_vec_with_registry!(
+                "daily_gas_usage",
+                "Current daily gas usage",
+                &["sponsor"],
+                registry,
+            )
+            .unwrap()
         })
     }
 

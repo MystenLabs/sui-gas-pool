@@ -17,6 +17,7 @@ pub const DEFAULT_METRICS_PORT: u16 = 9184;
 pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
 // 24 hours.
 const DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC: u64 = 60 * 60 * 24;
+pub const DEFAULT_DAILY_GAS_USAGE_CAP: u64 = 1500 * MIST_PER_SUI;
 
 // Use 127.0.0.1 for tests to avoid OS complaining about permissions.
 #[cfg(test)]
@@ -36,6 +37,7 @@ pub struct GasStationConfig {
     pub fullnode_url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
+    pub daily_gas_usage_cap: u64,
 }
 
 impl Config for GasStationConfig {}
@@ -50,6 +52,7 @@ impl Default for GasStationConfig {
             gas_pool_config: GasPoolStorageConfig::default(),
             fullnode_url: "http://localhost:9000".to_string(),
             coin_init_config: Some(CoinInitConfig::default()),
+            daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
         }
     }
 }

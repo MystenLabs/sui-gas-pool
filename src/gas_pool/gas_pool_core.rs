@@ -10,7 +10,7 @@ use crate::{retry_forever, retry_with_max_delay};
 use anyhow::bail;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::SuiTransactionBlockEffects;
+use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI};
@@ -21,6 +21,8 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::strategy::FixedInterval;
 use tokio_retry::Retry;
 use tracing::{debug, error, info};
+
+use super::gas_usage_cap::GasUsageCap;
 
 const EXPIRATION_JOB_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -36,6 +38,7 @@ pub struct GasPool {
     gas_pool_store: Arc<dyn Storage>,
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
+    gas_usage_cap: Arc<GasUsageCap>,
 }
 
 impl GasPool {
@@ -44,12 +47,14 @@ impl GasPool {
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
         metrics: Arc<GasPoolCoreMetrics>,
+        gas_usage_cap: Arc<GasUsageCap>,
     ) -> Arc<Self> {
         let pool = Self {
             signer,
             gas_pool_store,
             sui_client: SuiClient::new(fullnode_url).await,
             metrics,
+            gas_usage_cap,
         };
         Arc::new(pool)
     }
@@ -59,6 +64,7 @@ impl GasPool {
         gas_budget: u64,
         duration: Duration,
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
+        self.gas_usage_cap.check_usage().await?;
         let sponsor = self.signer.get_address();
         let (reservation_id, gas_coins) = self
             .gas_pool_store
@@ -138,6 +144,14 @@ impl GasPool {
             ?reservation_id,
             "Released {:?} coins after transaction execution", release_count
         );
+        if let Ok(effects) = &response {
+            let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
+            let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
+            self.metrics
+                .daily_gas_usage
+                .with_label_values(&[&sponsor.to_string()])
+                .set(new_daily_usage);
+        }
         response
     }
 
@@ -232,9 +246,17 @@ impl GasPoolContainer {
         signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         fullnode_url: &str,
+        gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Self {
-        let inner = GasPool::new(signer, gas_pool_store, fullnode_url, metrics).await;
+        let inner = GasPool::new(
+            signer,
+            gas_pool_store,
+            fullnode_url,
+            metrics,
+            Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
+        )
+        .await;
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
         let _coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;
 

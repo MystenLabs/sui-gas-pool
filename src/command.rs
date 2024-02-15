@@ -43,6 +43,7 @@ impl Command {
             rpc_port,
             metrics_port,
             coin_init_config,
+            daily_gas_usage_cap,
         } = config;
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
@@ -73,7 +74,14 @@ impl Command {
         };
 
         let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
-        let container = GasPoolContainer::new(signer, storage, &fullnode_url, core_metrics).await;
+        let container = GasPoolContainer::new(
+            signer,
+            storage,
+            &fullnode_url,
+            daily_gas_usage_cap,
+            core_metrics,
+        )
+        .await;
 
         let rpc_metrics = GasPoolRpcMetrics::new(&prometheus_registry);
         let server = GasPoolServer::new(
