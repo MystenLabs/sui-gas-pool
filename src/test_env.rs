@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::CoinInitConfig;
+use crate::config::{CoinInitConfig, DEFAULT_DAILY_GAS_USAGE_CAP};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
@@ -59,6 +59,7 @@ pub async fn start_gas_station(
         signer,
         storage,
         fullnode_url.as_str(),
+        DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
     )
     .await;

@@ -58,6 +58,7 @@ impl GasPoolServer {
         let app = Router::new()
             .route("/", get(health))
             .route("/version", get(version))
+            .route("/debug_health_check", post(debug_health_check))
             .route("/v1/reserve_gas", post(reserve_gas))
             .route("/v1/execute_tx", post(execute_tx))
             .layer(Extension(state));
@@ -103,6 +104,20 @@ async fn health() -> &'static str {
 async fn version() -> &'static str {
     info!("Received version request");
     VERSION
+}
+
+async fn debug_health_check(
+    TypedHeader(authorization): TypedHeader<Authorization<Bearer>>,
+    Extension(server): Extension<ServerState>,
+) -> String {
+    info!("Received debug_health_check request");
+    if authorization.token() != server.secret.as_str() {
+        return "Unauthorized".to_string();
+    }
+    if let Err(err) = server.gas_station.debug_check_health().await {
+        return format!("Failed to check health: {:?}", err);
+    }
+    "OK".to_string()
 }
 
 async fn reserve_gas(
