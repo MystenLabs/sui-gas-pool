@@ -124,7 +124,7 @@ impl GasPool {
         let cur_time = std::time::Instant::now();
         let response = self
             .sui_client
-            .execute_transaction(tx, Duration::from_secs(60))
+            .execute_transaction(tx, Duration::from_secs(1))
             .await;
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
