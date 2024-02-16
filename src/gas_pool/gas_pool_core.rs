@@ -213,7 +213,7 @@ impl GasPool {
     /// Performs an end-to-end flow of reserving gas, signing a transaction, and releasing the gas coins.
     pub async fn debug_check_health(&self) -> anyhow::Result<()> {
         let gas_budget = MIST_PER_SUI / 10;
-        let (_address, reservation_id, gas_coins) =
+        let (_address, _reservation_id, gas_coins) =
             self.reserve_gas(gas_budget, Duration::from_secs(3)).await?;
         let tx_kind = TransactionKind::ProgrammableTransaction(
             ProgrammableTransactionBuilder::new().finish(),
@@ -227,9 +227,6 @@ impl GasPool {
             0,
         );
         self.signer.sign_transaction(&tx_data).await?;
-        self.ready_for_execution(reservation_id).await?;
-        self.release_gas_coins(gas_coins.into_iter().map(|c| c.object_id).collect())
-            .await;
         Ok(())
     }
 
