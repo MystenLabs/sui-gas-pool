@@ -19,7 +19,7 @@ mod tests {
         let (test_cluster, _container, server) =
             start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
         let client = server.get_local_client();
-        client.check_health().await.unwrap();
+        client.health().await.unwrap();
 
         let (sponsor, reservation_id, gas_coins) =
             client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
@@ -42,7 +42,7 @@ mod tests {
             start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
 
         let client = server.get_local_client();
-        client.check_health().await.unwrap();
+        client.health().await.unwrap();
 
         let (_sponsor, _res_id, gas_coins) = client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
         assert_eq!(gas_coins.len(), 1);
@@ -50,5 +50,14 @@ mod tests {
         // Change the auth secret used in the client.
         std::env::set_var(AUTH_ENV_NAME, "b");
         assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_debug_health_check() {
+        let (_test_cluster, _container, server) =
+            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+
+        let client = server.get_local_client();
+        client.debug_health_check().await.unwrap();
     }
 }

@@ -12,8 +12,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
+use sui_types::gas_coin::MIST_PER_SUI;
+use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::signature::GenericSignature;
-use sui_types::transaction::{Argument, Command, Transaction, TransactionData, TransactionDataAPI};
+use sui_types::transaction::{
+    Argument, Command, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+};
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tokio_retry::strategy::ExponentialBackoff;
@@ -204,6 +208,29 @@ impl GasPool {
         })
         .unwrap();
         updated_coins.len()
+    }
+
+    /// Performs an end-to-end flow of reserving gas, signing a transaction, and releasing the gas coins.
+    pub async fn debug_check_health(&self) -> anyhow::Result<()> {
+        let gas_budget = MIST_PER_SUI / 10;
+        let (_address, reservation_id, gas_coins) =
+            self.reserve_gas(gas_budget, Duration::from_secs(3)).await?;
+        let tx_kind = TransactionKind::ProgrammableTransaction(
+            ProgrammableTransactionBuilder::new().finish(),
+        );
+        // Since we just want to check the health of the signer, we don't need to actually execute the transaction.
+        let tx_data = TransactionData::new_with_gas_coins(
+            tx_kind,
+            SuiAddress::default(),
+            gas_coins,
+            gas_budget,
+            0,
+        );
+        self.signer.sign_transaction(&tx_data).await?;
+        self.ready_for_execution(reservation_id).await?;
+        self.release_gas_coins(gas_coins.into_iter().map(|c| c.object_id).collect())
+            .await;
+        Ok(())
     }
 
     async fn start_coin_unlock_task(

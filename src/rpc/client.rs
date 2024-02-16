@@ -6,6 +6,7 @@ use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
 use crate::types::ReservationID;
+use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::Client;
@@ -29,14 +30,19 @@ impl GasPoolRpcClient {
         }
     }
 
-    pub async fn check_health(&self) -> Result<(), reqwest::Error> {
-        self.client
+    pub async fn health(&self) -> anyhow::Result<()> {
+        let response = self
+            .client
             .get(format!("{}/", self.server_address))
             .send()
             .await?
             .text()
             .await?;
-        Ok(())
+        if response.as_str() == "OK" {
+            Ok(())
+        } else {
+            bail!("Health check failed: {}", response);
+        }
     }
 
     pub async fn version(&self) -> Result<String, reqwest::Error> {
@@ -46,6 +52,27 @@ impl GasPoolRpcClient {
             .await?
             .text()
             .await
+    }
+
+    pub async fn debug_health_check(&self) -> anyhow::Result<()> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            format!("Bearer {}", read_auth_env()).parse().unwrap(),
+        );
+        let response = self
+            .client
+            .post(format!("{}/debug_health_check", self.server_address))
+            .headers(headers)
+            .send()
+            .await?
+            .text()
+            .await?;
+        if response.as_str() == "OK" {
+            Ok(())
+        } else {
+            bail!("Health check failed: {}", response);
+        }
     }
 
     pub async fn reserve_gas(

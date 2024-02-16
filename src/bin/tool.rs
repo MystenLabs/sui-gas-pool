@@ -54,7 +54,14 @@ pub enum ToolCommand {
 
 #[derive(Subcommand)]
 pub enum CliCommand {
+    /// A simple health check to see if the server is up and running.
     CheckStationHealth {
+        #[clap(long, help = "Full URL of the station RPC server")]
+        station_rpc_url: String,
+    },
+    /// A more complete version of health check, which includes checking the bearer secret,
+    /// storage layer and sidecar signer.
+    CheckStationEndToEndHealth {
         #[clap(long, help = "Full URL of the station RPC server")]
         station_rpc_url: String,
     },
@@ -107,7 +114,12 @@ impl ToolCommand {
             ToolCommand::CLI { cli_command } => match cli_command {
                 CliCommand::CheckStationHealth { station_rpc_url } => {
                     let station_client = GasPoolRpcClient::new(station_rpc_url);
-                    station_client.check_health().await.unwrap();
+                    station_client.health().await.unwrap();
+                    println!("Station server is healthy");
+                }
+                CliCommand::CheckStationEndToEndHealth { station_rpc_url } => {
+                    let station_client = GasPoolRpcClient::new(station_rpc_url);
+                    station_client.debug_health_check().await.unwrap();
                     println!("Station server is healthy");
                 }
                 CliCommand::GetStationVersion { station_rpc_url } => {
