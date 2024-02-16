@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::GasCoin;
-use crate::{retry_forever, retry_with_max_delay};
+use crate::{retry_forever, retry_with_max_attempts};
 use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
 use itertools::Itertools;
@@ -204,11 +204,11 @@ impl SuiClient {
     pub async fn execute_transaction(
         &self,
         tx: Transaction,
-        max_delay: Duration,
+        max_attempts: usize,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let digest = *tx.digest();
         debug!(?digest, "Executing transaction: {:?}", tx);
-        let response = retry_with_max_delay!(
+        let response = retry_with_max_attempts!(
             async {
                 self.sui_client
                     .quorum_driver_api()
@@ -222,7 +222,7 @@ impl SuiClient {
                     .map_err(anyhow::Error::from)
                     .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
             },
-            max_delay
+            max_attempts
         );
         debug!(?digest, "Transaction execution response: {:?}", response);
         response

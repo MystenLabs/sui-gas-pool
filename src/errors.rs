@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[macro_export]
-macro_rules! retry_with_max_delay {
-    ($func:expr, $max_delay:expr) => {{
-        let retry_strategy = ExponentialBackoff::from_millis(50).max_delay($max_delay);
+macro_rules! retry_with_max_attempts {
+    ($func:expr, $max_attempts:expr) => {{
+        let retry_strategy = ExponentialBackoff::from_millis(50)
+            .max_delay(Duration::from_secs(60))
+            .take($max_attempts);
         Retry::spawn(retry_strategy, || $func).await
     }};
 }

@@ -6,7 +6,7 @@ use crate::storage::Storage;
 use crate::sui_client::SuiClient;
 use crate::tx_signer::TxSigner;
 use crate::types::ReservationID;
-use crate::{retry_forever, retry_with_max_delay};
+use crate::{retry_forever, retry_with_max_attempts};
 use anyhow::bail;
 use std::sync::Arc;
 use std::time::Duration;
@@ -111,21 +111,18 @@ impl GasPool {
             .await?;
         debug!(?reservation_id, "Reservation is ready for execution");
 
-        let sponsor_sig = retry_with_max_delay!(
+        let sponsor_sig = retry_with_max_attempts!(
             async {
                 self.signer
                     .sign_transaction(&tx_data)
                     .await
                     .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
             },
-            Duration::from_secs(5)
+            3
         )?;
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
         let cur_time = std::time::Instant::now();
-        let response = self
-            .sui_client
-            .execute_transaction(tx, Duration::from_secs(1))
-            .await;
+        let response = self.sui_client.execute_transaction(tx, 3).await;
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
             .transaction_execution_latency_ms
