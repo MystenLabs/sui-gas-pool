@@ -119,8 +119,15 @@ impl ToolCommand {
                 }
                 CliCommand::CheckStationEndToEndHealth { station_rpc_url } => {
                     let station_client = GasPoolRpcClient::new(station_rpc_url);
-                    station_client.debug_health_check().await.unwrap();
-                    println!("Station server is healthy");
+                    match station_client.debug_health_check().await {
+                        Err(e) => {
+                            eprintln!("Station server is not healthy: {}", e);
+                            std::process::exit(1);
+                        }
+                        Ok(_) => {
+                            println!("Station server is healthy");
+                        }
+                    }
                 }
                 CliCommand::GetStationVersion { station_rpc_url } => {
                     let station_client = GasPoolRpcClient::new(station_rpc_url);

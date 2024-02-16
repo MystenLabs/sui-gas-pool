@@ -35,13 +35,15 @@ impl GasPoolRpcClient {
             .client
             .get(format!("{}/", self.server_address))
             .send()
-            .await?
-            .text()
             .await?;
-        if response.as_str() == "OK" {
+        if !response.status().is_success() {
+            bail!("Health check failed: {:?}", response);
+        }
+        let text = response.text().await?;
+        if text.as_str() == "OK" {
             Ok(())
         } else {
-            bail!("Health check failed: {}", response);
+            bail!("Health check failed: {}", text);
         }
     }
 
@@ -65,13 +67,15 @@ impl GasPoolRpcClient {
             .post(format!("{}/debug_health_check", self.server_address))
             .headers(headers)
             .send()
-            .await?
-            .text()
             .await?;
-        if response.as_str() == "OK" {
+        if !response.status().is_success() {
+            bail!("Health check failed: {:?}", response);
+        };
+        let text = response.text().await?;
+        if text.as_str() == "OK" {
             Ok(())
         } else {
-            bail!("Health check failed: {}", response);
+            bail!("Health check failed: {}", text);
         }
     }
 
