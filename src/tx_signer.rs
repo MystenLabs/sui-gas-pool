@@ -77,6 +77,7 @@ impl TxSigner for SidecarTxSigner {
             .header("Content-Type", "application/json")
             .send()
             .await?;
+        info!("get_address Response: {:?}", resp);
         let address = resp.json::<SuiAddressResponse>().await?;
         Ok(address.sui_pubkey_address)
     }
