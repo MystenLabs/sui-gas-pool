@@ -73,11 +73,9 @@ impl TxSigner for SidecarTxSigner {
     async fn get_address(&self) -> anyhow::Result<SuiAddress> {
         let resp = self
             .client
-            .post(format!("{}/{}", self.sidecar_url, "get-pubkey-address"))
-            .header("Content-Type", "application/json")
+            .get(format!("{}/{}", self.sidecar_url, "get-pubkey-address"))
             .send()
             .await?;
-        tracing::info!("get_address Response: {:?}", resp);
         let address = resp.json::<SuiAddressResponse>().await?;
         Ok(address.sui_pubkey_address)
     }
