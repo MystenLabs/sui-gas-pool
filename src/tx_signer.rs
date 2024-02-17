@@ -31,7 +31,7 @@ struct SignatureResponse {
 
 #[derive(Deserialize)]
 struct SuiAddressResponse {
-    sui_pubkey_address: SuiAddress,
+    suiPubkeyAddress: SuiAddress,
 }
 
 pub struct SidecarTxSigner {
@@ -76,7 +76,7 @@ impl TxSigner for SidecarTxSigner {
             .send()
             .await?;
         let address = resp.json::<SuiAddressResponse>().await?;
-        Ok(address.sui_pubkey_address)
+        Ok(address.suiPubkeyAddress)
     }
 }
 
