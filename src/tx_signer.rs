@@ -25,13 +25,15 @@ pub trait TxSigner: Send + Sync {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SignatureResponse {
     signature: String,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SuiAddressResponse {
-    suiPubkeyAddress: SuiAddress,
+    sui_pubkey_address: SuiAddress,
 }
 
 pub struct SidecarTxSigner {
@@ -76,7 +78,7 @@ impl TxSigner for SidecarTxSigner {
             .send()
             .await?;
         let address = resp.json::<SuiAddressResponse>().await?;
-        Ok(address.suiPubkeyAddress)
+        Ok(address.sui_pubkey_address)
     }
 }
 
