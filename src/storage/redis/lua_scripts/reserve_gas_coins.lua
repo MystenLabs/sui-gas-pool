@@ -37,7 +37,7 @@ if total_balance < target_budget then
     for i = #coins, 1, -1 do
         redis.call('LPUSH', t_available_gas_coins, coins[i])
     end
-    error('Unable to find enough gas coins to satisfy the request.')
+    return {0, {}}
 end
 
 redis.call('INCR', t_next_reservation_id)

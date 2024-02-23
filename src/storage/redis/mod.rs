@@ -78,7 +78,14 @@ impl Storage for RedisStorage {
                 .arg(expiration_time)
                 .invoke_async(&mut conn)
                 .await?;
-        assert!(!coins.is_empty());
+        // The script returns (0, []) if it is unable to find enough coins to reserve.
+        // We choose to handle the error here instead of inside the script so that we could
+        // provide a more readable error message.
+        if coins.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Unable to reserve gas coins for the given budget."
+            ));
+        }
         let gas_coins: Vec<_> = coins
             .into_iter()
             .map(|s| {
