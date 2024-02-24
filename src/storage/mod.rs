@@ -39,6 +39,11 @@ pub trait Storage: Sync + Send {
     /// Whether the gas pool for the given sponsor address is initialized.
     async fn is_initialized(&self) -> anyhow::Result<bool>;
 
+    /// Acquire a lock to initialize the gas pool for the given sponsor address for a certain duration.
+    /// Returns true if the lock is acquired, false otherwise.
+    /// Once the lock is acquired, until it expires, no other caller can acquire the lock.
+    async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool>;
+
     async fn check_health(&self) -> anyhow::Result<()>;
 
     #[cfg(test)]
@@ -324,5 +329,15 @@ mod tests {
         reserved_gas_coins.dedup_by_key(|c| c.object_ref.0);
         assert_eq!(reserved_gas_coins.len(), count);
         assert_coin_count(&storage, 100000 - count, count).await;
+    }
+
+    #[tokio::test]
+    async fn test_acquire_init_lock() {
+        let sponsor = SuiAddress::random_for_testing_only();
+        let storage = setup(sponsor, vec![1; 100]).await;
+        assert!(storage.acquire_init_lock(5).await.unwrap());
+        assert!(!storage.acquire_init_lock(1).await.unwrap());
+        tokio::time::sleep(Duration::from_secs(6)).await;
+        assert!(storage.acquire_init_lock(5).await.unwrap());
     }
 }

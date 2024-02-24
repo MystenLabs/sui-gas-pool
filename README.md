@@ -1,26 +1,32 @@
 # Enoki Gas Pool
-This is a high-level summary of how Sui Gas Station works.
+This is a high-level summary of how Enoki Gas Pool works.
 
 ## Assumptions
-The Gas Station can only be reached from an internal server, which handles rate limiting and authentication. The Gas Station blindly trusts the requests it receives.
+The Enoki Gas Pool will only be accessed from Enoki server, which handles rate limiting and user-level billing and authentication. The Gas Pool blindly trusts the requests it receives as long as a correct barer secret is provided in the RPC request.
+
+## User Flow
+![](user_flow.png)
 
 ## Architecture
-There are 5 components in the Gas Station:
+There are 4 components in the Gas Station:
 ### Storage
 The storage layer stores the global gas pool information.
 It uses Redis store as the backend, and Lua scripts to control the logic.
+Detailed documentation of each Lua script can be found in [link](src/storage/redis/lua_scripts/)
 
-### Gas Station Core
-The Gas Station Core implements the core gas station logic that is able to process RPC requests and communicate with the Storage layer.
+### Gas Pool Core
+The Gas Pool Core implements the core gas pool logic that is able to process RPC requests and communicate with the Storage layer.
 It has the following features:
-1. Upon requesting gas coins, it's able to obtain gas coins from the storage layer, remember it in memory, and return them to the caller.
-2. It's able to automatically release reserved gas coins back to the storage after the requested duration expires.
-3. Caller can then follow up with a transaction execution request that uses a previously reserved coin list, and the gas station core will drive the execution of the transaction, automatically release the coins back to the storage layer after the transaction is executed.
+1. Upon requesting gas coins, it's able to obtain gas coins from the storage layer and return them to the caller.
+2. Caller can follow up with a transaction execution request that uses previously reserved coins, and the gas station core will drive the execution of the transaction, automatically release the coins back to the storage layer after the transaction is executed.
+3. It's able to automatically release reserved gas coins back to the storage after the requested duration expires.
 
 ### Gas Pool Initializer
-A Gas Pool Initializer is able to initialize the global gas pool.
-When we are setting up the gas pool, we will need to run the initialization exactly once. It is able to look at all the SUI coins currently owned by the sponsor address, and split them into gas coins with a specified target balance.
-This is done by splitting coins into smaller coins in parallel to minimize the amount of time to split all.
+A Gas Pool Initializer is able to initialize the global gas pool, as well as processing new funds and adding new coins to the gas pool.
+When we are starting up the gas pool for a given sponsor address for the first time, it will trigger the initialization process. It looks at all the SUI coins currently owned by the sponsor address, and split them into gas coins with a specified target balance. Once a day, it also looks at whether there is any coin owned by the sponsor address with a very large balance (NEW_COIN_BALANCE_FACTOR_THRESHOLD * target_init_balance), and if so it triggers initialization process again on the newly detected coin. This allows us add funding to the gas pool.
+To speed up the initialization time, it is able tp split coins into smaller coins in parallel.
+Before each initialization run, it acquires a lock from the store to ensure that no other initialization task is running at the same time. The lock expires automatically after 12 hours.
+This allows us to run multiple gas stations for the same sponsor address.
 
 ### RPC Server
 An HTTP server is implemented to take the following 3 requests:
@@ -62,10 +68,10 @@ pub struct ExecuteTxResponse {
 }
 ```
 
+## Binaries
 ### `sui-gas-staiton` Binary
-The binary takes a few command line arguments:
+The binary takes a an argument:
 - `--config-path` (required): Path to the config file.
-- `--force-init-gas-pool` (optional): If specified, the gas pool will be initialized with the specified target balance from the config. This should only be called once per address, and may take a while.
 
 ### `tool` Binary
 The `tool` binary currently supports a few helper commands:
@@ -73,26 +79,7 @@ The `tool` binary currently supports a few helper commands:
 2. `generate-sample-config`: This generates a sample config file that can be used to start the gas station server.
 3. `cli`: Provides a few CLI commands to interact with the gas station server.
 
-### Deployment
-Step 1:
-Put up a config file.
-First of all one can run
-```bash
-sui-gas-station generate-sample-config --config-path config.yaml
-```
-to generate a sample config file.
-Then one can edit the config file to fill in the fields.
-The keypair field is the serialized SuiKeyPair that can be found in a typical .keystore file.
+## Production Engineering
+Dashboard can be found in https://metrics.sui.io/d/bdc7u6und9lvkc/gas-pool?orgId=1
 
-Step 2:
-Start a Redis server.
-
-Step 3:
-Start the gas station.
-```bash
-GAS_STATION_AUTH=<secret> sui-gas-station --config-path config.yaml
-```
-If this is the first time we are running the gas station, we will need to initialize the gas pool first.
-```bash
-GAS_STATION_AUTH=<secret> sui-gas-station --config-path config.yaml --force-init-gas-pool
-```
+Deployment task can be found at https://github.com/MystenLabs/sui-operations/actions/workflows/deploy-gas-station.yaml

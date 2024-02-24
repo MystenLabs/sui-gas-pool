@@ -1,11 +1,15 @@
 -- Copyright (c) Mysten Labs, Inc.
 -- SPDX-License-Identifier: Apache-2.0
 
-local sponsor_address = ARGV[1]
--- new_coins is a JSON array of new coins.
+-- This script is used to add new coins to the available gas coins queue.
+-- The first argument is the sponsor's address.
+-- The second argument is a JSON array of new coins.
 -- Each coin is just a string, using "," to separate these fields:
 --   balance, object id, object version, object digest.
--- Here we don't care about the format, just push each to the queue.
+-- In this script we don't care about the format, just push each to the queue.
+-- We also set the initialized flag to 1 if we added any coins.
+
+local sponsor_address = ARGV[1]
 local new_coins = ARGV[2]
 
 local t_available_gas_coins = sponsor_address .. ':available_gas_coins'

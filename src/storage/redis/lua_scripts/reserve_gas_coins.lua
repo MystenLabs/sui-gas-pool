@@ -1,6 +1,15 @@
 -- Copyright (c) Mysten Labs, Inc.
 -- SPDX-License-Identifier: Apache-2.0
 
+-- This script is used to reserve gas coins for a sponsor address.
+-- It takes out gas coins from the available_gas_coins list and returns them to the caller.
+-- It also creates a unique reservation id and stores the reserved coins in a separate reservation map.
+-- The reservation id is used to track the reserved coins and to release them back to the available pool if not used.
+-- The reservation id is added to the expiration_queue to track the expiration time of the reserved coins.
+-- The first argument is the sponsor's address.
+-- The second argument is the target budget.
+-- The third argument is the expiration time.
+
 local sponsor_address = ARGV[1]
 local target_budget = tonumber(ARGV[2])
 local expiration_time = tonumber(ARGV[3])

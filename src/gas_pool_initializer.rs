@@ -29,6 +29,9 @@ use tracing::{debug, error, info};
 /// is considered a new coin, and we will try to split it into smaller coins with balance close to target_init_coin_balance.
 const NEW_COIN_BALANCE_FACTOR_THRESHOLD: u64 = 200;
 
+/// Assume that initializing the gas pool (i.e. splitting coins) will take at most 12 hours.
+const MAX_INIT_DURATION_SEC: u64 = 60 * 60 * 12;
+
 #[derive(Clone)]
 struct CoinSplitEnv {
     target_init_coin_balance: u64,
@@ -235,8 +238,18 @@ impl GasPoolInitializer {
         target_init_coin_balance: u64,
         signer: &Arc<dyn TxSigner>,
     ) {
-        let start = Instant::now();
         let sponsor_address = signer.get_address().await.unwrap();
+        if storage
+            .acquire_init_lock(MAX_INIT_DURATION_SEC)
+            .await
+            .unwrap()
+        {
+            info!("Acquired init lock. Starting new coin initialization");
+        } else {
+            info!("Another task is already initializing the pool. Skipping this round");
+            return;
+        }
+        let start = Instant::now();
         let sui_client = SuiClient::new(fullnode_url).await;
         let balance_threshold = if matches!(mode, RunMode::Init) {
             info!("The pool has never been initialized. Initializing it for the first time");
