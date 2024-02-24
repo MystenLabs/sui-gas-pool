@@ -22,13 +22,6 @@ use tracing::info;
 pub struct Command {
     #[arg(long, help = "Path to config file")]
     config_path: PathBuf,
-    #[arg(
-        long,
-        help = "If specified, run the gas pool initialization process. This should only run once globally for each \
-            address, and it will take some time to finish. It looks at all the gas coins currently owned by the provided sponsor address, split them into
-            smaller gas coins with specified target balance, and initialize the gas pool with these coins."
-    )]
-    force_init_gas_pool: bool,
 }
 
 impl Command {

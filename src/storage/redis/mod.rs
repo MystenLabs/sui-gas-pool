@@ -196,6 +196,17 @@ impl Storage for RedisStorage {
         Ok(result)
     }
 
+    async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool> {
+        let mut conn = self.conn_manager.clone();
+        let result = ScriptManager::acquire_init_lock_script()
+            .arg(self.sponsor_str.clone())
+            .arg(Utc::now().timestamp() as u64)
+            .arg(lock_duration_sec)
+            .invoke_async::<_, bool>(&mut conn)
+            .await?;
+        Ok(result)
+    }
+
     async fn check_health(&self) -> anyhow::Result<()> {
         let mut conn = self.conn_manager.clone();
         redis::cmd("PING").query_async(&mut conn).await?;

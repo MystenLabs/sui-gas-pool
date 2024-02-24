@@ -1,6 +1,11 @@
 -- Copyright (c) Mysten Labs, Inc.
 -- SPDX-License-Identifier: Apache-2.0
 
+-- This script is used to expire gas coins that have been reserved but not used after the expiration time.
+-- It takes out all gas coins from the expiration_queue that have expired and returns them to the caller.
+-- The first argument is the sponsor's address.
+-- The second argument is the current timestamp.
+
 local sponsor_address = ARGV[1]
 local current_time = tonumber(ARGV[2])
 
