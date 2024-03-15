@@ -18,6 +18,7 @@ use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{TransactionData, TransactionDataAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
+use tracing::debug;
 
 pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<dyn TxSigner>) {
     let (sponsor, keypair) = get_account_key_pair();
@@ -42,9 +43,12 @@ pub async fn start_gas_station(
     init_gas_amounts: Vec<u64>,
     target_init_coin_balance: u64,
 ) -> (TestCluster, GasPoolContainer) {
+    debug!("Starting Sui cluster..");
     let (test_cluster, signer) = start_sui_cluster(init_gas_amounts).await;
     let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
-    let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+    let sponsor_address = signer.get_address().await.unwrap();
+    debug!("Starting storage. Sponsor address: {:?}", sponsor_address);
+    let storage = connect_storage_for_testing(sponsor_address).await;
     GasPoolInitializer::start(
         fullnode_url.clone(),
         storage.clone(),

@@ -396,6 +396,7 @@ mod tests {
         .await;
         assert!(storage.is_initialized().await.unwrap());
         let available_coin_count = storage.get_available_coin_count().await.unwrap();
+        tracing::debug!("Available coin count: {}", available_coin_count);
 
         // Transfer some new SUI into the sponsor account.
         let new_addr = *cluster
@@ -411,10 +412,17 @@ mod tests {
                 sponsor,
             )
             .build();
-        cluster.sign_and_execute_transaction(&tx_data).await;
+        let response = cluster.sign_and_execute_transaction(&tx_data).await;
+        tracing::debug!("New transfer effects: {:?}", response.effects.unwrap());
+
         // Give it some time for the task to pick up the new coin and split it.
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
         let new_available_coin_count = storage.get_available_coin_count().await.unwrap();
-        assert!(new_available_coin_count > available_coin_count + 100);
+        assert!(
+            new_available_coin_count > available_coin_count + 100,
+            "new_available_coin_count: {}, available_coin_count: {}",
+            new_available_coin_count,
+            available_coin_count
+        );
     }
 }

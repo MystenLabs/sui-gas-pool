@@ -98,6 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_coin_expiration() {
+        telemetry_subscribers::init_for_testing();
         let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station

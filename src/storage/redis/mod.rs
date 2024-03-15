@@ -31,30 +31,11 @@ impl RedisStorage {
     ) -> Self {
         let client = redis::Client::open(redis_url).unwrap();
         let conn_manager = ConnectionManager::new(client).await.unwrap();
-        let storage = Self {
+        Self {
             conn_manager,
             sponsor_str: sponsor_address.to_string(),
             metrics,
-        };
-        let available_coin_count = storage.get_available_coin_count().await.unwrap();
-        let available_coin_total_balance = storage.get_available_coin_total_balance().await;
-        info!(
-            ?sponsor_address,
-            "Number of available gas coins in the pool: {}, total balance: {}",
-            available_coin_count,
-            available_coin_total_balance
-        );
-        storage
-            .metrics
-            .gas_pool_available_gas_coin_count
-            .with_label_values(&[&storage.sponsor_str])
-            .set(available_coin_count as i64);
-        storage
-            .metrics
-            .gas_pool_available_gas_total_balance
-            .with_label_values(&[&storage.sponsor_str])
-            .set(available_coin_total_balance as i64);
-        storage
+        }
     }
 }
 
@@ -71,13 +52,17 @@ impl Storage for RedisStorage {
             .add(Duration::from_millis(reserved_duration_ms))
             .timestamp_millis() as u64;
         let mut conn = self.conn_manager.clone();
-        let (reservation_id, coins): (ReservationID, Vec<String>) =
-            ScriptManager::reserve_gas_coins_script()
-                .arg(self.sponsor_str.clone())
-                .arg(target_budget)
-                .arg(expiration_time)
-                .invoke_async(&mut conn)
-                .await?;
+        let (reservation_id, coins, new_total_balance, new_coin_count): (
+            ReservationID,
+            Vec<String>,
+            i64,
+            i64,
+        ) = ScriptManager::reserve_gas_coins_script()
+            .arg(self.sponsor_str.clone())
+            .arg(target_budget)
+            .arg(expiration_time)
+            .invoke_async(&mut conn)
+            .await?;
         // The script returns (0, []) if it is unable to find enough coins to reserve.
         // We choose to handle the error here instead of inside the script so that we could
         // provide a more readable error message.
@@ -105,11 +90,11 @@ impl Storage for RedisStorage {
         self.metrics
             .gas_pool_available_gas_coin_count
             .with_label_values(&[&self.sponsor_str])
-            .sub(gas_coins.len() as i64);
+            .set(new_coin_count);
         self.metrics
             .gas_pool_available_gas_total_balance
             .with_label_values(&[&self.sponsor_str])
-            .sub(gas_coins.iter().map(|c| c.balance as i64).sum::<i64>());
+            .set(new_total_balance);
         self.metrics.num_successful_reserve_gas_coins_requests.inc();
         Ok((reservation_id, gas_coins))
     }
@@ -149,20 +134,24 @@ impl Storage for RedisStorage {
             .collect::<Vec<String>>();
 
         let mut conn = self.conn_manager.clone();
-        ScriptManager::add_new_coins_script()
+        let (new_total_balance, new_coin_count): (i64, i64) = ScriptManager::add_new_coins_script()
             .arg(self.sponsor_str.clone())
             .arg(serde_json::to_string(&formatted_coins)?)
             .invoke_async(&mut conn)
             .await?;
 
+        debug!(
+            "After add_new_coins. New total balance: {}, new coin count: {}",
+            new_total_balance, new_coin_count
+        );
         self.metrics
             .gas_pool_available_gas_coin_count
             .with_label_values(&[&self.sponsor_str])
-            .add(new_coins.len() as i64);
+            .set(new_coin_count);
         self.metrics
             .gas_pool_available_gas_total_balance
             .with_label_values(&[&self.sponsor_str])
-            .add(new_coins.iter().map(|c| c.balance as i64).sum::<i64>());
+            .set(new_total_balance);
         self.metrics.num_successful_add_new_coins_requests.inc();
         Ok(())
     }
@@ -187,6 +176,30 @@ impl Storage for RedisStorage {
         Ok(expired_coin_ids)
     }
 
+    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<()> {
+        let mut conn = self.conn_manager.clone();
+        let (available_coin_count, available_coin_total_balance): (i64, i64) =
+            ScriptManager::init_coin_stats_at_startup_script()
+                .arg(self.sponsor_str.clone())
+                .invoke_async(&mut conn)
+                .await?;
+        info!(
+            sponsor_address=?self.sponsor_str,
+            "Number of available gas coins in the pool: {}, total balance: {}",
+            available_coin_count,
+            available_coin_total_balance
+        );
+        self.metrics
+            .gas_pool_available_gas_coin_count
+            .with_label_values(&[&self.sponsor_str])
+            .set(available_coin_count as i64);
+        self.metrics
+            .gas_pool_available_gas_total_balance
+            .with_label_values(&[&self.sponsor_str])
+            .set(available_coin_total_balance as i64);
+        Ok(())
+    }
+
     async fn is_initialized(&self) -> anyhow::Result<bool> {
         let mut conn = self.conn_manager.clone();
         let result = ScriptManager::get_is_initialized_script()
@@ -197,15 +210,15 @@ impl Storage for RedisStorage {
     }
 
     async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool> {
-        let cur_time = Utc::now().timestamp() as u64;
-        debug!(
-            "Acquiring the init lock. Current time: {}, lock_duration_sec: {}",
-            cur_time, lock_duration_sec
-        );
         let mut conn = self.conn_manager.clone();
+        let cur_timestamp = Utc::now().timestamp() as u64;
+        debug!(
+            "Acquiring init lock at {} for {} seconds",
+            cur_timestamp, lock_duration_sec
+        );
         let result = ScriptManager::acquire_init_lock_script()
             .arg(self.sponsor_str.clone())
-            .arg(cur_time)
+            .arg(cur_timestamp)
             .arg(lock_duration_sec)
             .invoke_async::<_, bool>(&mut conn)
             .await?;
