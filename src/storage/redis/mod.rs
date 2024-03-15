@@ -14,7 +14,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
-use tracing::info;
+use tracing::{debug, info};
 
 pub struct RedisStorage {
     conn_manager: ConnectionManager,
@@ -197,14 +197,29 @@ impl Storage for RedisStorage {
     }
 
     async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool> {
+        let cur_time = Utc::now().timestamp() as u64;
+        debug!(
+            "Acquiring the init lock. Current time: {}, lock_duration_sec: {}",
+            cur_time, lock_duration_sec
+        );
         let mut conn = self.conn_manager.clone();
         let result = ScriptManager::acquire_init_lock_script()
             .arg(self.sponsor_str.clone())
-            .arg(Utc::now().timestamp() as u64)
+            .arg(cur_time)
             .arg(lock_duration_sec)
             .invoke_async::<_, bool>(&mut conn)
             .await?;
         Ok(result)
+    }
+
+    async fn release_init_lock(&self) -> anyhow::Result<()> {
+        debug!("Releasing the init lock.");
+        let mut conn = self.conn_manager.clone();
+        ScriptManager::release_init_lock_script()
+            .arg(self.sponsor_str.clone())
+            .invoke_async::<_, ()>(&mut conn)
+            .await?;
+        Ok(())
     }
 
     async fn check_health(&self) -> anyhow::Result<()> {
