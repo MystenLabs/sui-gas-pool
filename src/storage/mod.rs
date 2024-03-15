@@ -42,7 +42,11 @@ pub trait Storage: Sync + Send {
     /// Acquire a lock to initialize the gas pool for the given sponsor address for a certain duration.
     /// Returns true if the lock is acquired, false otherwise.
     /// Once the lock is acquired, until it expires, no other caller can acquire the lock.
+    /// The reason we use a lock duration is such that in case the server crashed while holding the lock,
+    /// the lock will be automatically considered as released after the lock duration.
     async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool>;
+
+    async fn release_init_lock(&self) -> anyhow::Result<()>;
 
     async fn check_health(&self) -> anyhow::Result<()>;
 

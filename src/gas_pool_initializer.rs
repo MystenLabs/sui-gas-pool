@@ -265,6 +265,7 @@ impl GasPoolInitializer {
                 "No coins with balance above {} found. Skipping new coin initialization",
                 balance_threshold
             );
+            storage.release_init_lock().await.unwrap();
             return;
         }
         let total_coin_count = Arc::new(AtomicUsize::new(coins.len()));
@@ -290,6 +291,7 @@ impl GasPoolInitializer {
         for chunk in result.chunks(5000) {
             storage.add_new_coins(chunk.to_vec()).await.unwrap();
         }
+        storage.release_init_lock().await.unwrap();
         info!(
             "New coin initialization took {:?}s",
             start.elapsed().as_secs()
