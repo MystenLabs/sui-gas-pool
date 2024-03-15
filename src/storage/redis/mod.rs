@@ -176,7 +176,7 @@ impl Storage for RedisStorage {
         Ok(expired_coin_ids)
     }
 
-    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<()> {
+    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<(u64, u64)> {
         let mut conn = self.conn_manager.clone();
         let (available_coin_count, available_coin_total_balance): (i64, i64) =
             ScriptManager::init_coin_stats_at_startup_script()
@@ -192,12 +192,15 @@ impl Storage for RedisStorage {
         self.metrics
             .gas_pool_available_gas_coin_count
             .with_label_values(&[&self.sponsor_str])
-            .set(available_coin_count as i64);
+            .set(available_coin_count);
         self.metrics
             .gas_pool_available_gas_total_balance
             .with_label_values(&[&self.sponsor_str])
-            .set(available_coin_total_balance as i64);
-        Ok(())
+            .set(available_coin_total_balance);
+        Ok((
+            available_coin_count as u64,
+            available_coin_total_balance as u64,
+        ))
     }
 
     async fn is_initialized(&self) -> anyhow::Result<bool> {
