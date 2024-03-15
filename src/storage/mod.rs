@@ -36,6 +36,14 @@ pub trait Storage: Sync + Send {
 
     async fn expire_coins(&self) -> anyhow::Result<Vec<ObjectID>>;
 
+    /// Initialize some of the gas pool statistics at the startup.
+    /// Such as the total number of gas coins and the total balance.
+    /// This is needed for several reasons:
+    /// 1. To make sure that these fields are not empty when the first query comes in.
+    ///    We only need this once ever though.
+    /// 2. To make sure we start reporting the correct metrics from the beginning.
+    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<()>;
+
     /// Whether the gas pool for the given sponsor address is initialized.
     async fn is_initialized(&self) -> anyhow::Result<bool>;
 
@@ -75,6 +83,7 @@ pub async fn connect_storage(
         .check_health()
         .await
         .expect("Unable to connect to the storage layer");
+    storage.init_coin_stats_at_startup().await.unwrap();
     storage
 }
 
@@ -92,6 +101,8 @@ pub async fn connect_storage_for_testing_with_config(
     if is_first_call {
         // Make sure that we only flush the DB once at the beginning of each test run.
         storage.flush_db().await;
+        // Re-init coin stats again since we just flushed.
+        storage.init_coin_stats_at_startup().await.unwrap();
     }
     storage
 }
