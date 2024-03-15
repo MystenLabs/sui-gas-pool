@@ -419,7 +419,13 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
         let new_available_coin_count = storage.get_available_coin_count().await.unwrap();
         assert!(
-            new_available_coin_count > available_coin_count + 100,
+            // In an ideal world we should have NEW_COIN_BALANCE_FACTOR_THRESHOLD more coins
+            // since we just send a new coin with balance NEW_COIN_BALANCE_FACTOR_THRESHOLD and split
+            // into target balance of 1 SUI each. However due to gas cost in splitting in practice
+            // we are getting less, depending on gas cost which could change from time to time.
+            // Substract 5 which is an arbitrary small number just to be safe.
+            new_available_coin_count
+                > available_coin_count + NEW_COIN_BALANCE_FACTOR_THRESHOLD as usize - 5,
             "new_available_coin_count: {}, available_coin_count: {}",
             new_available_coin_count,
             available_coin_count

@@ -42,7 +42,8 @@ pub trait Storage: Sync + Send {
     /// 1. To make sure that these fields are not empty when the first query comes in.
     ///    We only need this once ever though.
     /// 2. To make sure we start reporting the correct metrics from the beginning.
-    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<()>;
+    /// Returns the total number of gas coins and the total balance.
+    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<(u64, u64)>;
 
     /// Whether the gas pool for the given sponsor address is initialized.
     async fn is_initialized(&self) -> anyhow::Result<bool>;
@@ -354,5 +355,16 @@ mod tests {
         assert!(!storage.acquire_init_lock(1).await.unwrap());
         tokio::time::sleep(Duration::from_secs(6)).await;
         assert!(storage.acquire_init_lock(5).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_init_coin_stats_idempotent() {
+        let sponsor = SuiAddress::random_for_testing_only();
+        let storage = setup(sponsor, vec![1; 100]).await;
+        // init_coin_stats_at_startup has already been called in setup.
+        // Calling it again should not change anything.
+        let (coin_count, total_balance) = storage.init_coin_stats_at_startup().await.unwrap();
+        assert_eq!(coin_count, 100);
+        assert_eq!(total_balance, 100);
     }
 }
