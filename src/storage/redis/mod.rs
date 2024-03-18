@@ -281,3 +281,88 @@ impl Storage for RedisStorage {
             .unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sui_types::base_types::{random_object_ref, SuiAddress};
+
+    use crate::{
+        metrics::StorageMetrics,
+        storage::{redis::RedisStorage, Storage},
+        types::GasCoin,
+    };
+
+    #[tokio::test]
+    async fn test_init_coin_stats_at_startup() {
+        let storage = setup_storage().await;
+        storage
+            .add_new_coins(vec![
+                GasCoin {
+                    balance: 100,
+                    object_ref: random_object_ref(),
+                },
+                GasCoin {
+                    balance: 200,
+                    object_ref: random_object_ref(),
+                },
+            ])
+            .await
+            .unwrap();
+        let (coin_count, total_balance) = storage.init_coin_stats_at_startup().await.unwrap();
+        assert_eq!(coin_count, 2);
+        assert_eq!(total_balance, 300);
+    }
+
+    #[tokio::test]
+    async fn test_add_new_coins() {
+        let storage = setup_storage().await;
+        storage
+            .add_new_coins(vec![
+                GasCoin {
+                    balance: 100,
+                    object_ref: random_object_ref(),
+                },
+                GasCoin {
+                    balance: 200,
+                    object_ref: random_object_ref(),
+                },
+            ])
+            .await
+            .unwrap();
+        let coin_count = storage.get_available_coin_count().await.unwrap();
+        assert_eq!(coin_count, 2);
+        let total_balance = storage.get_available_coin_total_balance().await;
+        assert_eq!(total_balance, 300);
+        storage
+            .add_new_coins(vec![
+                GasCoin {
+                    balance: 300,
+                    object_ref: random_object_ref(),
+                },
+                GasCoin {
+                    balance: 400,
+                    object_ref: random_object_ref(),
+                },
+            ])
+            .await
+            .unwrap();
+        let coin_count = storage.get_available_coin_count().await.unwrap();
+        assert_eq!(coin_count, 4);
+        let total_balance = storage.get_available_coin_total_balance().await;
+        assert_eq!(total_balance, 1000);
+    }
+
+    async fn setup_storage() -> RedisStorage {
+        let storage = RedisStorage::new(
+            "redis://127.0.0.1:6379",
+            SuiAddress::ZERO,
+            StorageMetrics::new_for_testing(),
+        )
+        .await;
+        storage.flush_db().await;
+        let (coin_count, total_balance) = storage.init_coin_stats_at_startup().await.unwrap();
+        assert_eq!(coin_count, 0);
+        assert_eq!(total_balance, 0);
+        storage
+    }
+}

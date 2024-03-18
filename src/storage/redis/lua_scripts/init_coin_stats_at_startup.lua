@@ -12,19 +12,18 @@ local t_available_gas_coins = sponsor_address .. ':available_gas_coins'
 
 local t_available_coin_count = sponsor_address .. ':available_coin_count'
 local coin_count = redis.call('GET', t_available_coin_count)
-if coin_count == false then
+if not coin_count then
     coin_count = redis.call('LLEN', t_available_gas_coins)
     redis.call('SET', t_available_coin_count, coin_count)
 end
 
 local t_available_coin_total_balance = sponsor_address .. ':available_coin_total_balance'
 local total_balance = redis.call('GET', t_available_coin_total_balance)
-if total_balance == false then
+if not total_balance then
     local elements = redis.call('LRANGE', t_available_gas_coins, 0, -1)
     total_balance = 0
-    for i = 1, #elements do
+    for _, coin in ipairs(elements) do
         -- Each coin is just a string, using "," to separate fields. The first is balance.
-        local coin = elements[i]
         local idx, _ = string.find(coin, ',', 1)
         local balance = string.sub(coin, 1, idx - 1)
         total_balance = total_balance + tonumber(balance)
