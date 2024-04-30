@@ -174,7 +174,7 @@ impl Drop for GasPoolInitializer {
 
 impl GasPoolInitializer {
     pub async fn start(
-        fullnode_url: String,
+        sui_client: SuiClient,
         storage: Arc<dyn Storage>,
         coin_init_config: CoinInitConfig,
         signer: Arc<dyn TxSigner>,
@@ -182,7 +182,7 @@ impl GasPoolInitializer {
         if !storage.is_initialized().await.unwrap() {
             // If the pool has never been initialized, always run once at the beginning to make sure we have enough coins.
             Self::run_once(
-                fullnode_url.as_str(),
+                sui_client.clone(),
                 &storage,
                 RunMode::Init,
                 coin_init_config.target_init_balance,
@@ -192,7 +192,7 @@ impl GasPoolInitializer {
         }
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
         let _task_handle = tokio::spawn(Self::run(
-            fullnode_url,
+            sui_client,
             storage,
             coin_init_config,
             signer,
@@ -205,7 +205,7 @@ impl GasPoolInitializer {
     }
 
     async fn run(
-        fullnode_url: String,
+        sui_client: SuiClient,
         storage: Arc<dyn Storage>,
         coin_init_config: CoinInitConfig,
         signer: Arc<dyn TxSigner>,
@@ -221,7 +221,7 @@ impl GasPoolInitializer {
             }
             info!("Coin init task waking up and looking for new coins to initialize");
             Self::run_once(
-                fullnode_url.as_str(),
+                sui_client.clone(),
                 &storage,
                 RunMode::Refresh,
                 coin_init_config.target_init_balance,
@@ -232,7 +232,7 @@ impl GasPoolInitializer {
     }
 
     async fn run_once(
-        fullnode_url: &str,
+        sui_client: SuiClient,
         storage: &Arc<dyn Storage>,
         mode: RunMode,
         target_init_coin_balance: u64,
@@ -250,7 +250,6 @@ impl GasPoolInitializer {
             return;
         }
         let start = Instant::now();
-        let sui_client = SuiClient::new(fullnode_url).await;
         let balance_threshold = if matches!(mode, RunMode::Init) {
             info!("The pool has never been initialized. Initializing it for the first time");
             0
@@ -333,6 +332,7 @@ mod tests {
     use crate::config::CoinInitConfig;
     use crate::gas_pool_initializer::{GasPoolInitializer, NEW_COIN_BALANCE_FACTOR_THRESHOLD};
     use crate::storage::connect_storage_for_testing;
+    use crate::sui_client::SuiClient;
     use crate::test_env::start_sui_cluster;
     use sui_types::gas_coin::MIST_PER_SUI;
 
@@ -344,8 +344,9 @@ mod tests {
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+        let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
-            fullnode_url,
+            sui_client,
             storage.clone(),
             CoinInitConfig {
                 target_init_balance: MIST_PER_SUI,
@@ -364,8 +365,9 @@ mod tests {
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
         let target_init_balance = 12345 * MIST_PER_SUI;
+        let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
-            fullnode_url,
+            sui_client,
             storage.clone(),
             CoinInitConfig {
                 target_init_balance,
@@ -384,8 +386,9 @@ mod tests {
         let sponsor = signer.get_address().await.unwrap();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
         let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+        let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _init_task = GasPoolInitializer::start(
-            fullnode_url,
+            sui_client,
             storage.clone(),
             CoinInitConfig {
                 target_init_balance: MIST_PER_SUI,
@@ -423,7 +426,7 @@ mod tests {
             // since we just send a new coin with balance NEW_COIN_BALANCE_FACTOR_THRESHOLD and split
             // into target balance of 1 SUI each. However due to gas cost in splitting in practice
             // we are getting less, depending on gas cost which could change from time to time.
-            // Substract 5 which is an arbitrary small number just to be safe.
+            // Subtract 5 which is an arbitrary small number just to be safe.
             new_available_coin_count
                 > available_coin_count + NEW_COIN_BALANCE_FACTOR_THRESHOLD as usize - 5,
             "new_available_coin_count: {}, available_coin_count: {}",
