@@ -45,14 +45,14 @@ impl GasPool {
     pub async fn new(
         signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
-        fullnode_url: &str,
+        sui_client: SuiClient,
         metrics: Arc<GasPoolCoreMetrics>,
         gas_usage_cap: Arc<GasUsageCap>,
     ) -> Arc<Self> {
         let pool = Self {
             signer,
             gas_pool_store,
-            sui_client: SuiClient::new(fullnode_url).await,
+            sui_client,
             metrics,
             gas_usage_cap,
         };
@@ -272,14 +272,14 @@ impl GasPoolContainer {
     pub async fn new(
         signer: Arc<dyn TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
-        fullnode_url: &str,
+        sui_client: SuiClient,
         gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Self {
         let inner = GasPool::new(
             signer,
             gas_pool_store,
-            fullnode_url,
+            sui_client,
             metrics,
             Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
         )

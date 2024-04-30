@@ -7,6 +7,7 @@ use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
 use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage_for_testing;
+use crate::sui_client::SuiClient;
 use crate::tx_signer::{TestTxSigner, TxSigner};
 use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
@@ -49,8 +50,9 @@ pub async fn start_gas_station(
     let sponsor_address = signer.get_address().await.unwrap();
     debug!("Starting storage. Sponsor address: {:?}", sponsor_address);
     let storage = connect_storage_for_testing(sponsor_address).await;
+    let sui_client = SuiClient::new(&fullnode_url, None).await;
     GasPoolInitializer::start(
-        fullnode_url.clone(),
+        sui_client.clone(),
         storage.clone(),
         CoinInitConfig {
             target_init_balance: target_init_coin_balance,
@@ -62,7 +64,7 @@ pub async fn start_gas_station(
     let station = GasPoolContainer::new(
         signer,
         storage,
-        fullnode_url.as_str(),
+        sui_client,
         DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
     )

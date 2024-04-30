@@ -7,6 +7,7 @@ use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics, StorageMetrics};
 use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage;
+use crate::sui_client::SuiClient;
 use clap::*;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
@@ -32,6 +33,7 @@ impl Command {
             signer_config,
             gas_pool_config,
             fullnode_url,
+            fullnode_basic_auth,
             rpc_host_ip,
             rpc_port,
             metrics_port,
@@ -54,9 +56,10 @@ impl Command {
         let sponsor_address = signer.get_address().await.unwrap();
         info!("Sponsor address: {:?}", sponsor_address);
         let storage = connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await;
+        let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
         let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
             let task = GasPoolInitializer::start(
-                fullnode_url.clone(),
+                sui_client.clone(),
                 storage.clone(),
                 coin_init_config,
                 signer.clone(),
@@ -71,7 +74,7 @@ impl Command {
         let container = GasPoolContainer::new(
             signer,
             storage,
-            &fullnode_url,
+            sui_client,
             daily_gas_usage_cap,
             core_metrics,
         )

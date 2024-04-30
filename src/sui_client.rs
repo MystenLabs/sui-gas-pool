@@ -30,12 +30,12 @@ pub struct SuiClient {
 }
 
 impl SuiClient {
-    pub async fn new(fullnode_url: &str) -> Self {
-        let sui_client = SuiClientBuilder::default()
-            .max_concurrent_requests(100000)
-            .build(fullnode_url)
-            .await
-            .unwrap();
+    pub async fn new(fullnode_url: &str, basic_auth: Option<(String, String)>) -> Self {
+        let mut sui_client_builder = SuiClientBuilder::default().max_concurrent_requests(100000);
+        if let Some((username, password)) = basic_auth {
+            sui_client_builder = sui_client_builder.basic_auth(username, password);
+        }
+        let sui_client = sui_client_builder.build(fullnode_url).await.unwrap();
         Self { sui_client }
     }
 
