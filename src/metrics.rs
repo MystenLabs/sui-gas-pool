@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::histogram::Histogram;
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, IntCounter, IntCounterVec, IntGaugeVec, Registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_vec_with_registry, Histogram,
+    IntCounter, IntCounterVec, IntGaugeVec, Registry,
 };
 use std::sync::Arc;
 use tracing::error;
@@ -47,16 +47,18 @@ impl GasPoolRpcMetrics {
                 registry,
             )
             .unwrap(),
-            target_gas_budget_per_request: Histogram::new_in_registry(
+            target_gas_budget_per_request: register_histogram_with_registry!(
                 "target_gas_budget_per_request",
                 "Target gas budget value in the reserve_gas RPC request",
                 registry,
-            ),
-            reserve_duration_per_request: Histogram::new_in_registry(
+            )
+            .unwrap(),
+            reserve_duration_per_request: register_histogram_with_registry!(
                 "reserve_duration_per_request",
                 "Reserve duration value in the reserve_gas RPC request",
                 registry,
-            ),
+            )
+            .unwrap(),
             num_execute_tx_requests: register_int_counter_with_registry!(
                 "num_execute_tx_requests",
                 "Total number of execute_tx RPC requests received",
@@ -95,11 +97,12 @@ pub struct GasPoolCoreMetrics {
 impl GasPoolCoreMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         Arc::new(Self {
-            reserved_gas_coin_count_per_request: Histogram::new_in_registry(
+            reserved_gas_coin_count_per_request: register_histogram_with_registry!(
                 "reserved_gas_coin_count_per_request",
                 "Number of gas coins reserved in each reserve_gas RPC request",
                 registry,
-            ),
+            )
+            .unwrap(),
             num_expired_gas_coins: register_int_counter_vec_with_registry!(
                 "num_expired_gas_coins",
                 "Total number of gas coins that are put back due to reservation expiration",
@@ -114,11 +117,12 @@ impl GasPoolCoreMetrics {
                 registry,
             )
             .unwrap(),
-            transaction_execution_latency_ms: Histogram::new_in_registry(
+            transaction_execution_latency_ms: register_histogram_with_registry!(
                 "transaction_execution_latency",
                 "Latency of transaction execution, in milliseconds",
                 registry,
-            ),
+            )
+            .unwrap(),
             num_gas_pool_invariant_violations: register_int_counter_with_registry!(
                 "num_gas_pool_invariant_violations",
                 "Total number of invariant violations in the gas pool core",

@@ -150,11 +150,11 @@ async fn reserve_gas(
     server
         .metrics
         .target_gas_budget_per_request
-        .observe(gas_budget);
+        .observe(gas_budget as f64);
     server
         .metrics
         .reserve_duration_per_request
-        .observe(reserve_duration_secs);
+        .observe(reserve_duration_secs as f64);
     // Spawn a thread to process the request so that it will finish even when client drops the connection.
     tokio::task::spawn(reserve_gas_impl(
         server.gas_station.clone(),

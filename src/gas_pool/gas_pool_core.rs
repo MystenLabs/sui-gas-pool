@@ -72,7 +72,7 @@ impl GasPool {
             .await?;
         self.metrics
             .reserved_gas_coin_count_per_request
-            .observe(gas_coins.len() as u64);
+            .observe(gas_coins.len() as f64);
         Ok((
             sponsor,
             reservation_id,
@@ -152,7 +152,7 @@ impl GasPool {
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
             .transaction_execution_latency_ms
-            .observe(elapsed as u64);
+            .observe(elapsed as f64);
         let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
         let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
         self.metrics
