@@ -37,6 +37,7 @@ env:
 
 jobs:
   test:
+    name: CI tests
     runs-on: [ubuntu-ghcloud]
     steps:
       - name: Checkout repo
@@ -46,6 +47,9 @@ jobs:
         uses: pierotofy/set-swap-space@master
         with:
           swap-size-gb: 256
+
+      - name: Setup nextest
+        uses: taiki-e/install-action@nextest
 
       - name: Setup Redis
         uses: shogo82148/actions-setup-redis@v1
