@@ -15,6 +15,7 @@ pub struct GasPoolRpcMetrics {
     pub num_reserve_gas_requests: IntCounter,
     pub num_authorized_reserve_gas_requests: IntCounter,
     pub num_successful_reserve_gas_requests: IntCounter,
+    pub num_failed_reserve_gas_requests: IntCounter,
 
     // Statistics about the gas reservation request
     pub target_gas_budget_per_request: Histogram,
@@ -24,6 +25,7 @@ pub struct GasPoolRpcMetrics {
     pub num_execute_tx_requests: IntCounter,
     pub num_authorized_execute_tx_requests: IntCounter,
     pub num_successful_execute_tx_requests: IntCounter,
+    pub num_failed_execute_tx_requests: IntCounter,
 }
 
 impl GasPoolRpcMetrics {
@@ -44,6 +46,12 @@ impl GasPoolRpcMetrics {
             num_successful_reserve_gas_requests: register_int_counter_with_registry!(
                 "num_successful_reserve_gas_requests",
                 "Total number of reserve_gas RPC requests that were successful",
+                registry,
+            )
+            .unwrap(),
+            num_failed_reserve_gas_requests: register_int_counter_with_registry!(
+                "num_failed_reserve_gas_requests",
+                "Total number of reserve_gas RPC requests that failed",
                 registry,
             )
             .unwrap(),
@@ -74,6 +82,12 @@ impl GasPoolRpcMetrics {
             num_successful_execute_tx_requests: register_int_counter_with_registry!(
                 "num_successful_execute_tx_requests",
                 "Total number of execute_tx RPC requests that were successful",
+                registry,
+            )
+            .unwrap(),
+            num_failed_execute_tx_requests: register_int_counter_with_registry!(
+                "num_failed_execute_tx_requests",
+                "Total number of execute_tx RPC requests that failed",
                 registry,
             )
             .unwrap(),
