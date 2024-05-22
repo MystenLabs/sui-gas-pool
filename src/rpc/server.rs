@@ -198,7 +198,8 @@ async fn reserve_gas_impl(
             (StatusCode::OK, Json(response))
         }
         Err(err) => {
-            info!("Failed to reserve gas: {:?}", err);
+            error!("Failed to reserve gas: {:?}", err);
+            metrics.num_failed_reserve_gas_requests.inc();
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ReserveGasResponse::new_err(err)),
@@ -279,6 +280,7 @@ async fn execute_tx_impl(
         }
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);
+            metrics.num_failed_execute_tx_requests.inc();
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ExecuteTxResponse::new_err(err)),
