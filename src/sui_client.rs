@@ -17,6 +17,7 @@ use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
 use sui_types::gas_coin::GAS;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
 use sui_types::transaction::{
     Argument, ObjectArg, ProgrammableTransaction, Transaction, TransactionKind,
 };
@@ -209,8 +210,8 @@ impl SuiClient {
                     .quorum_driver_api()
                     .execute_transaction_block(
                         tx.clone(),
-                        SuiTransactionBlockResponseOptions::full_content(),
-                        None,
+                        SuiTransactionBlockResponseOptions::new().with_effects(),
+                        Some(ExecuteTransactionRequestType::WaitForEffectsCert),
                     )
                     .await
                     .tap_err(|err| debug!(?digest, "execute_transaction error: {:?}", err))
