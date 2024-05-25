@@ -238,7 +238,7 @@ impl GasPoolInitializer {
         target_init_coin_balance: u64,
         signer: &Arc<dyn TxSigner>,
     ) {
-        let sponsor_address = signer.get_address().await.unwrap();
+        let sponsor_address = signer.get_address();
         if storage
             .acquire_init_lock(MAX_INIT_DURATION_SEC)
             .await
@@ -343,7 +343,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
             sui_client,
@@ -363,7 +363,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let target_init_balance = 12345 * MIST_PER_SUI;
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
@@ -383,9 +383,9 @@ mod tests {
     async fn test_add_new_funds_to_pool() {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
-        let sponsor = signer.get_address().await.unwrap();
+        let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
-        let storage = connect_storage_for_testing(signer.get_address().await.unwrap()).await;
+        let storage = connect_storage_for_testing(signer.get_address()).await;
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _init_task = GasPoolInitializer::start(
             sui_client,

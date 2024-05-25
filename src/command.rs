@@ -51,9 +51,9 @@ impl Command {
         let _guard = telemetry_config.init();
         info!("Metrics server started at {:?}", metric_address);
 
-        let signer = signer_config.new_signer();
+        let signer = signer_config.new_signer().await;
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
-        let sponsor_address = signer.get_address().await.unwrap();
+        let sponsor_address = signer.get_address();
         info!("Sponsor address: {:?}", sponsor_address);
         let storage = connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await;
         let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;

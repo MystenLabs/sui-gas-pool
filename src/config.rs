@@ -94,10 +94,10 @@ impl Default for TxSignerConfig {
 }
 
 impl TxSignerConfig {
-    pub fn new_signer(self) -> Arc<dyn TxSigner> {
+    pub async fn new_signer(self) -> Arc<dyn TxSigner> {
         match self {
             TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
-            TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url),
+            TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url).await,
         }
     }
 }
