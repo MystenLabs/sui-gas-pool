@@ -65,7 +65,7 @@ impl GasPool {
         duration: Duration,
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         self.gas_usage_cap.check_usage().await?;
-        let sponsor = self.signer.get_address().await?;
+        let sponsor = self.signer.get_address();
         let (reservation_id, gas_coins) = self
             .gas_pool_store
             .reserve_gas_coins(gas_budget, duration.as_millis() as u64)
@@ -87,7 +87,7 @@ impl GasPool {
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let sponsor = tx_data.gas_data().owner;
-        if !self.signer.is_valid_address(&sponsor).await? {
+        if !self.signer.is_valid_address(&sponsor) {
             bail!("Sponsor {:?} is not registered", sponsor);
         };
         Self::check_transaction_validity(&tx_data)?;

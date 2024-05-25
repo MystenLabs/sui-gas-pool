@@ -18,9 +18,9 @@ use sui_types::transaction::TransactionData;
 pub trait TxSigner: Send + Sync {
     async fn sign_transaction(&self, tx_data: &TransactionData)
         -> anyhow::Result<GenericSignature>;
-    async fn get_address(&self) -> anyhow::Result<SuiAddress>;
-    async fn is_valid_address(&self, address: &SuiAddress) -> anyhow::Result<bool> {
-        Ok(self.get_address().await? == *address)
+    fn get_address(&self) -> SuiAddress;
+    fn is_valid_address(&self, address: &SuiAddress) -> bool {
+        self.get_address() == *address
     }
 }
 
@@ -39,13 +39,26 @@ struct SuiAddressResponse {
 pub struct SidecarTxSigner {
     sidecar_url: String,
     client: Client,
+    sui_address: SuiAddress,
 }
 
 impl SidecarTxSigner {
-    pub fn new(sidecar_url: String) -> Arc<Self> {
+    pub async fn new(sidecar_url: String) -> Arc<Self> {
+        let client = Client::new();
+        let resp = client
+            .get(format!("{}/{}", sidecar_url, "get-pubkey-address"))
+            .send()
+            .await
+            .unwrap_or_else(|err| panic!("Failed to get pubkey address: {}", err));
+        let sui_address = resp
+            .json::<SuiAddressResponse>()
+            .await
+            .unwrap_or_else(|err| panic!("Failed to parse address response: {}", err))
+            .sui_pubkey_address;
         Arc::new(Self {
             sidecar_url,
-            client: Client::new(),
+            client,
+            sui_address,
         })
     }
 }
@@ -70,14 +83,8 @@ impl TxSigner for SidecarTxSigner {
         Ok(sig)
     }
 
-    async fn get_address(&self) -> anyhow::Result<SuiAddress> {
-        let resp = self
-            .client
-            .get(format!("{}/{}", self.sidecar_url, "get-pubkey-address"))
-            .send()
-            .await?;
-        let address = resp.json::<SuiAddressResponse>().await?;
-        Ok(address.sui_pubkey_address)
+    fn get_address(&self) -> SuiAddress {
+        self.sui_address
     }
 }
 
@@ -102,7 +109,7 @@ impl TxSigner for TestTxSigner {
         Ok(sponsor_sig)
     }
 
-    async fn get_address(&self) -> anyhow::Result<SuiAddress> {
-        Ok((&self.keypair.public()).into())
+    fn get_address(&self) -> SuiAddress {
+        (&self.keypair.public()).into()
     }
 }
