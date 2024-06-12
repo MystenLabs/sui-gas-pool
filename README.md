@@ -1,17 +1,32 @@
 # Sui Gas Pool
 
 Sui Gas Pool is a service that powers sponsored transactions on Sui at scale. It manages a database of gas coins owned
-by a sponsor address and provides APIs to reserve gas coins and use them to pay for transactions.
+by a sponsor address and provides APIs to reserve gas coins and use them to pay for transactions. It achieves
+scalability and high throughput by managing a large number of gas coin objects in the pool, so that it can sponsor a
+large number of transactions concurrently.
 
 ## User Flow
 
-![](user_flow.png)
+A typical flow that interacts with the gas pool service looks like the following:
+
+1. App or client prepares a transaction without gas payment, sends it to an internal server.
+2. The internal server talks to the gas pool service to reserve gas coins for the given budget specified by the
+   transaction.
+3. The gas pool reserves gas coins and returns them to the internal server.
+4. The internal server sends the complete transaction back to the app/client.
+5. The app/client asks the user to sign the complete transaction, and sends back the sender signed transaction to the
+   internal server.
+6. The internal server then sends the sender signed transaction to the gas pool service to execute the transaction.
+7. The gas pool service executes the transaction though a fullnode and returns the effects to the internal server, which
+   then forwards it back to the app/client. The used gas coins are also freed up and ready for reservation again.
+
+## Architecture
 
 A gas pool service instance corresponds to one sponsor address. A gas pool service instance will contain the following
 components:
 
 1. Redis Storage. There should be a single Redis instance per gas pool service. This stores all the data that need to be
-   persisted.
+   persisted, including the gas coin objects in the pool, reservation information and etc.
 2. One or more gas pool servers. This is the binary built from this repository, and it is ok to deploy multiple
    instances of them, as long as they all connect to the same Redis server. Each of these servers provide RPC interfaces
    to serve requests.
@@ -40,6 +55,9 @@ initialize and fund gas coins to the pool:
 
 ### RPC Server
 
+The gas pool service starts a RPC Server that listens on a specified port. It supports permission control through barer
+secret token. An internal server that communicates with the gas pool service must specify the token in the request. This
+is also why an internal server is needed such that the barer token is not exposed to the public.
 An HTTP server is implemented to take the following 3 requests:
 
 - GET("/"): Checks the health of the server
@@ -136,47 +154,30 @@ Below describes the steps to deploy a gas pool service:
 2. Send a sufficiently funded SUI coin into that address. This will be the initial funding of the gas pool.
 3. Deploy a Redis instance.
 4. Create a YAML config file (see details below).
+5. Pick a secure secret token for the RPC server, this will be passed through the `GAS_STATION_AUTH` environment
+   variable when starting the gas pool server.
 5. Deploy the gas pool server.
 
 To create a YAML config file, you can use the following command to generate a sample config:
 
 `tool generate-sample-config --config-path sample.yaml --with-sidecar-signer`
 
-```jsx
+```yaml
 ---
-    signer - config
-:
-sidecar:
+signer-config:
+  sidecar:
     sidecar_url: "http://localhost:3000"
-rpc - host - ip
-:
-0.0
-.0
-.0
-rpc - port
-:
-9527
-metrics - port
-:
-9184
-gas - pool - config
-:
-redis:
+rpc-host-ip: 0.0.0.0
+rpc-port: 9527
+metrics-port: 9184
+gas-pool-config:
+  redis:
     redis_url: "redis:://127.0.0.1"
-fullnode - url
-:
-"http://localhost:9000"
-coin - init - config
-:
-target - init - balance
-:
-100000000
-refresh - interval - sec
-:
-86400
-daily - gas - usage - cap
-:
-1500000000000
+fullnode-url: "http://localhost:9000"
+coin-init-config:
+  target-init-balance: 100000000
+  refresh-interval-sec: 86400
+daily-gas-usage-cap: 1500000000000
 ```
 
 If you want to use in-memory signer, you can remove `--with-sidecar-signer` from the command.
