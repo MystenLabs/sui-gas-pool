@@ -104,7 +104,7 @@ impl ToolCommand {
                 let config = GasStationConfig {
                     signer_config,
                     gas_pool_config: GasPoolStorageConfig::Redis {
-                        redis_url: "redis:://127.0.0.1".to_string(),
+                        redis_url: "redis://127.0.0.1".to_string(),
                     },
                     ..Default::default()
                 };
