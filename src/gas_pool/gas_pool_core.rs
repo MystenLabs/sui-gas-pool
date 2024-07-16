@@ -10,7 +10,9 @@ use crate::{retry_forever, retry_with_max_attempts};
 use anyhow::bail;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
+use sui_json_rpc_types::{
+    SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+};
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
@@ -85,7 +87,7 @@ impl GasPool {
         reservation_id: ReservationID,
         tx_data: TransactionData,
         user_sig: GenericSignature,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let sponsor = tx_data.gas_data().owner;
         if !self.signer.is_valid_address(&sponsor) {
             bail!("Sponsor {:?} is not registered", sponsor);
@@ -114,10 +116,21 @@ impl GasPool {
         let total_gas_coin_balance = self.get_total_gas_coin_balance(payment.clone()).await;
         let response = self.execute_transaction_impl(tx_data, user_sig).await;
         let updated_coins = match &response {
-            Ok(effects) => {
-                let new_gas_coin = effects.gas_object().reference.to_object_ref();
-                let new_balance =
-                    total_gas_coin_balance as i64 - effects.gas_cost_summary().net_gas_usage();
+            Ok(response) => {
+                let new_gas_coin = response
+                    .effects
+                    .clone()
+                    .unwrap()
+                    .gas_object()
+                    .reference
+                    .to_object_ref();
+                let new_balance = total_gas_coin_balance as i64
+                    - response
+                        .effects
+                        .clone()
+                        .unwrap()
+                        .gas_cost_summary()
+                        .net_gas_usage();
                 debug!(
                     ?reservation_id,
                     "Total gas coin balance prior to execution: {}, new balance: {}",
@@ -173,7 +186,7 @@ impl GasPool {
         &self,
         tx_data: TransactionData,
         user_sig: GenericSignature,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let sponsor = tx_data.gas_data().owner;
         let sponsor_sig = retry_with_max_attempts!(
             async {
@@ -186,18 +199,23 @@ impl GasPool {
         )?;
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
         let cur_time = std::time::Instant::now();
-        let effects = self.sui_client.execute_transaction(tx, 3).await?;
+        let response = self.sui_client.execute_transaction(tx, 3).await?;
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
             .transaction_execution_latency_ms
             .observe(elapsed as u64);
-        let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
+        let net_gas_usage = response
+            .effects
+            .clone()
+            .expect("no effects")
+            .gas_cost_summary()
+            .net_gas_usage();
         let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
         self.metrics
             .daily_gas_usage
             .with_label_values(&[&sponsor.to_string()])
             .set(new_daily_usage);
-        Ok(effects)
+        Ok(response)
     }
 
     async fn get_total_gas_coin_balance(&self, gas_coins: Vec<ObjectID>) -> u64 {

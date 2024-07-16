@@ -147,10 +147,13 @@ impl GasPoolRpcClient {
             .await?
             .json::<ExecuteTxResponse>()
             .await?;
-        response.effects.ok_or_else(|| {
-            anyhow::anyhow!(response
-                .error
-                .unwrap_or_else(|| "Unknown error".to_string()))
-        })
+        response
+            .response
+            .ok_or_else(|| {
+                anyhow::anyhow!(response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()))
+            })
+            .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
     }
 }

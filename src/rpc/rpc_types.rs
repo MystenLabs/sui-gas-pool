@@ -5,7 +5,7 @@ use crate::types::ReservationID;
 use fastcrypto::encoding::Base64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
+use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects, SuiTransactionBlockResponse};
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
 // 2 SUI.
@@ -87,21 +87,21 @@ pub struct ExecuteTxRequest {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ExecuteTxResponse {
-    pub effects: Option<SuiTransactionBlockEffects>,
+    pub response: Option<SuiTransactionBlockResponse>,
     pub error: Option<String>,
 }
 
 impl ExecuteTxResponse {
-    pub fn new_ok(effects: SuiTransactionBlockEffects) -> Self {
+    pub fn new_ok(response: SuiTransactionBlockResponse) -> Self {
         Self {
-            effects: Some(effects),
+            response: Some(response),
             error: None,
         }
     }
 
     pub fn new_err(error: anyhow::Error) -> Self {
         Self {
-            effects: None,
+            response: None,
             error: Some(error.to_string()),
         }
     }

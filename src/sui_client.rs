@@ -7,11 +7,11 @@ use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use std::collections::HashMap;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
 use sui_json_rpc_types::{
     SuiData, SuiObjectDataOptions, SuiObjectResponse, SuiTransactionBlockEffects,
     SuiTransactionBlockResponseOptions,
 };
+use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse};
 use sui_sdk::SuiClientBuilder;
 use sui_types::base_types::{ObjectID, SuiAddress};
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
@@ -201,7 +201,7 @@ impl SuiClient {
         &self,
         tx: Transaction,
         max_attempts: usize,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let digest = *tx.digest();
         debug!(?digest, "Executing transaction: {:?}", tx);
         let response = retry_with_max_attempts!(
@@ -210,13 +210,16 @@ impl SuiClient {
                     .quorum_driver_api()
                     .execute_transaction_block(
                         tx.clone(),
-                        SuiTransactionBlockResponseOptions::new().with_effects(),
+                        SuiTransactionBlockResponseOptions::new()
+                            .with_effects()
+                            .with_object_changes()
+                            .with_events(),
                         Some(ExecuteTransactionRequestType::WaitForEffectsCert),
                     )
                     .await
                     .tap_err(|err| debug!(?digest, "execute_transaction error: {:?}", err))
                     .map_err(anyhow::Error::from)
-                    .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
+                // .and_then(|r| r.effects.ok_or_else(|| anyhow::anyhow!("No effects")))
             },
             max_attempts
         );

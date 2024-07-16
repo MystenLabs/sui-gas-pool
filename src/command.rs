@@ -88,6 +88,8 @@ impl Command {
             rpc_metrics,
         )
         .await;
-        server.handle.await.unwrap();
+        if let Err(e) = server.handle.await {
+            eprintln!("Server handle error: {:?}", e);
+        }
     }
 }

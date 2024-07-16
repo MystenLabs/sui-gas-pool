@@ -80,7 +80,7 @@ impl CoinSplitEnv {
             coin, split_count
         );
         let budget = self.gas_cost_per_object * split_count;
-        let effects = loop {
+        let response = loop {
             let mut pt_builder = ProgrammableTransactionBuilder::new();
             let pure_arg = pt_builder.pure(split_count).unwrap();
             pt_builder.programmable_move_call(
@@ -112,14 +112,14 @@ impl CoinSplitEnv {
             );
             let result = self.sui_client.execute_transaction(tx.clone(), 10).await;
             match result {
-                Ok(effects) => {
+                Ok(response) => {
                     assert!(
-                        effects.status().is_ok(),
+                        response.effects.clone().unwrap().status().is_ok(),
                         "Transaction failed. This should never happen. Tx: {:?}, effects: {:?}",
                         tx,
-                        effects
+                        response
                     );
-                    break effects;
+                    break response;
                 }
                 Err(e) => {
                     error!("Failed to execute transaction: {:?}", e);
@@ -138,18 +138,31 @@ impl CoinSplitEnv {
         };
         let mut result = vec![];
         let new_coin_balance = (coin.balance - budget) / split_count;
-        for created in effects.created() {
+        for created in response.effects.clone().unwrap().created() {
             result.extend(self.enqueue_task(GasCoin {
                 object_ref: created.reference.to_object_ref(),
                 balance: new_coin_balance,
             }));
         }
         let remaining_coin_balance = (coin.balance - new_coin_balance * (split_count - 1)) as i64
-            - effects.gas_cost_summary().net_gas_usage();
-        result.extend(self.enqueue_task(GasCoin {
-            object_ref: effects.gas_object().reference.to_object_ref(),
-            balance: remaining_coin_balance as u64,
-        }));
+            - response
+                .effects
+                .clone()
+                .unwrap()
+                .gas_cost_summary()
+                .net_gas_usage();
+        result.extend(
+            self.enqueue_task(GasCoin {
+                object_ref: response
+                    .effects
+                    .clone()
+                    .unwrap()
+                    .gas_object()
+                    .reference
+                    .to_object_ref(),
+                balance: remaining_coin_balance as u64,
+            }),
+        );
         self.increment_total_coin_count_by(result.len() - 1);
         result
     }
