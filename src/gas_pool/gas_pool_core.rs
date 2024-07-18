@@ -112,7 +112,13 @@ impl GasPool {
         // We first query the total balance prior to transaction execution, then execute the
         // transaction, and finally derive the new gas coin balance using the gas usage from effects.
         let total_gas_coin_balance = self.get_total_gas_coin_balance(payment.clone()).await;
-        let response = self.execute_transaction_impl(tx_data, user_sig).await;
+        debug!(
+            ?reservation_id,
+            "Total gas coin balance prior to execution: {}", total_gas_coin_balance,
+        );
+        let response = self
+            .execute_transaction_impl(reservation_id, tx_data, user_sig)
+            .await;
         let updated_coins = match &response {
             Ok(effects) => {
                 let new_gas_coin = effects.gas_object().reference.to_object_ref();
@@ -120,9 +126,7 @@ impl GasPool {
                     total_gas_coin_balance as i64 - effects.gas_cost_summary().net_gas_usage();
                 debug!(
                     ?reservation_id,
-                    "Total gas coin balance prior to execution: {}, new balance: {}",
-                    total_gas_coin_balance,
-                    new_balance
+                    "New gas coin balance after execution: {}", new_balance,
                 );
                 #[cfg(test)]
                 {
@@ -171,6 +175,7 @@ impl GasPool {
 
     async fn execute_transaction_impl(
         &self,
+        reservation_id: ReservationID,
         tx_data: TransactionData,
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
@@ -184,9 +189,11 @@ impl GasPool {
             },
             3
         )?;
+        debug!(?reservation_id, "Transaction signed by sponsor");
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
         let cur_time = std::time::Instant::now();
         let effects = self.sui_client.execute_transaction(tx, 3).await?;
+        debug!(?reservation_id, "Transaction executed");
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
             .transaction_execution_latency_ms
