@@ -172,7 +172,7 @@ rpc-port: 9527
 metrics-port: 9184
 gas-pool-config:
   redis:
-    redis_url: "redis:://127.0.0.1"
+    redis_url: "redis://127.0.0.1"
 fullnode-url: "http://localhost:9000"
 coin-init-config:
   target-init-balance: 100000000
