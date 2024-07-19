@@ -9,10 +9,16 @@ use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage;
 use crate::sui_client::SuiClient;
 use clap::*;
+use sui_types::base_types::SuiAddress;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use sui_config::Config;
 use tracing::info;
+
+use std::env;
+use std::str::FromStr;
+
+
 
 #[derive(Parser)]
 #[command(
@@ -53,7 +59,11 @@ impl Command {
 
         let signer = signer_config.new_signer().await;
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
-        let sponsor_address = signer.get_address();
+        let sponsor_address = SuiAddress::from_str(
+                                            &env::var("SECRET_KEY_GAS")
+                                                .expect("SECRET_KEY_GAS not defined")
+                                                .to_string()
+                                        ).unwrap();//signer.get_address();
         info!("Sponsor address: {:?}", sponsor_address);
         let storage = connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await;
         let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
