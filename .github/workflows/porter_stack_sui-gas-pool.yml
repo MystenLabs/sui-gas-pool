@@ -1,7 +1,10 @@
 "on":
-  push:
-    branches:
-    - sui
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "staging"
 name: Deploy to sui-gas-pool
 jobs:
   porter-deploy:
@@ -15,7 +18,7 @@ jobs:
     - name: Setup porter
       uses: porter-dev/setup-porter@v0.1.0
     - name: Deploy stack
-      timeout-minutes: 30
+      timeout-minutes: 90
       run: exec porter apply
       env:
         PORTER_CLUSTER: "3832"
