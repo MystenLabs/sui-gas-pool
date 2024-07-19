@@ -1,0 +1,32 @@
+"on":
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: true
+        default: "staging"
+name: Deploy to sui-gas-pool
+jobs:
+  porter-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set Github tag
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Setup porter
+      uses: porter-dev/setup-porter@v0.1.0
+    - name: Deploy stack
+      timeout-minutes: 90
+      run: exec porter apply
+      env:
+        PORTER_CLUSTER: "3832"
+        PORTER_DEPLOYMENT_TARGET_ID: e5bb1bf6-1914-4e71-8fe8-f6bad18de46e
+        PORTER_HOST: https://dashboard.porter.run
+        PORTER_PR_NUMBER: ${{ github.event.number }}
+        PORTER_PROJECT: "12226"
+        PORTER_REPO_NAME: ${{ github.event.repository.name }}
+        PORTER_STACK_NAME: sui-gas-pool
+        PORTER_TAG: ${{ steps.vars.outputs.sha_short }}
+        PORTER_TOKEN: ${{ secrets.PORTER_STACK_12226_3832 }}
