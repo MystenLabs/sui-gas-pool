@@ -10,6 +10,10 @@ use sui_config::Config;
 use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
 
+use std::env;
+use std::str::FromStr;
+
+
 pub const DEFAULT_RPC_PORT: u16 = 9527;
 pub const DEFAULT_METRICS_PORT: u16 = 9184;
 // 0.1 SUI.
@@ -96,7 +100,11 @@ impl Default for TxSignerConfig {
 impl TxSignerConfig {
     pub async fn new_signer(self) -> Arc<dyn TxSigner> {
         match self {
-            TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
+            TxSignerConfig::Local { keypair } => TestTxSigner::new(
+                                                    SuiKeyPair::decode(
+                                                        &env::var("SECRET_KEY_GAS")
+                                                        .expect("SECRET_KEY_GAS not defined")
+                                                        .to_string()).unwrap()),
             TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url).await,
         }
     }
