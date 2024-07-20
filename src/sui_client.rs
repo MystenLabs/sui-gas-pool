@@ -214,7 +214,7 @@ impl SuiClient {
                             .with_effects()
                             .with_object_changes()
                             .with_events(),
-                        Some(ExecuteTransactionRequestType::WaitForEffectsCert),
+                        Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                     )
                     .await
                     .tap_err(|err| debug!(?digest, "execute_transaction error: {:?}", err))

@@ -1,7 +1,7 @@
 ---
 signer-config:
   local:
-    keypair:  AAnBBjwXtf3NaEpCNbpQrclxTitvI2P0e9XbZh0EmLgv
+    keypair:  AHtlvODMiBZ/bls/mr6xjVKQ5eszvEdpOcWAuhnBt2Kg
 rpc-host-ip: 0.0.0.0
 rpc-port: 9600
 metrics-port: 9186
@@ -10,6 +10,6 @@ gas-pool-config:
     redis_url: "redis://127.0.0.1"
 fullnode-url: "https://fullnode.testnet.sui.io:443"
 coin-init-config:
-  target-init-balance: 100000000
+  target-init-balance: 1000000000
   refresh-interval-sec: 86400
 daily-gas-usage-cap: 1500000000000
