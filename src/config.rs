@@ -7,12 +7,11 @@ use serde_with::serde_as;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use sui_config::Config;
-use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
+use sui_types::crypto::{get_account_key_pair, EncodeDecodeBase64, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
 
 use std::env;
 use std::str::FromStr;
-
 
 pub const DEFAULT_RPC_PORT: u16 = 9527;
 pub const DEFAULT_METRICS_PORT: u16 = 9184;
@@ -101,10 +100,13 @@ impl TxSignerConfig {
     pub async fn new_signer(self) -> Arc<dyn TxSigner> {
         match self {
             TxSignerConfig::Local { keypair } => TestTxSigner::new(
-                                                    SuiKeyPair::decode(
-                                                        &env::var("SECRET_KEY_GAS")
-                                                        .expect("SECRET_KEY_GAS not defined")
-                                                        .to_string()).unwrap()),
+                SuiKeyPair::decode_base64(
+                    &env::var("SECRET_KEY_GAS_B64")
+                        .expect("SECRET_KEY_GAS_B64 not defined")
+                        .to_string(),
+                )
+                .unwrap(),
+            ),
             TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url).await,
         }
     }
