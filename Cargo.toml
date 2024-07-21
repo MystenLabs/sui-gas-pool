@@ -6,6 +6,12 @@ authors = ["Mysten Labs <build@mystenlabs.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/MystenLabs/sui-gas-station"
 
+
+[[bin]]
+name = "sui_gas_station"
+path = "src/main.rs"
+
+
 [dependencies]
 #sui-config = { path = "../sui-upstream/crates/sui-config" }
 #sui-json-rpc-types = { path = "../sui-upstream/crates/sui-json-rpc-types" }
@@ -57,8 +63,8 @@ serde_json = "1.0.108"
 [dev-dependencies]
 rand = "0.8.5"
 
-sui-swarm-config = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-swarm-config" }
-test-cluster = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "test-cluster" }
+sui-swarm-config = { git = "https://github.com/MystenLabs/sui", branch = "main", package = "sui-swarm-config" }
+test-cluster = { git = "https://github.com/MystenLabs/sui", branch = "main", package = "test-cluster" }
 
 [profile.release]
 panic = "abort"
