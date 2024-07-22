@@ -1,5 +1,5 @@
 [package]
-name = "sui-gas-station"
+name = "sui-gas-pool"
 version = "0.4.0"
 edition = "2021"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
@@ -8,9 +8,8 @@ repository = "https://github.com/MystenLabs/sui-gas-station"
 
 
 [[bin]]
-name = "sui_gas_station"
+name = "sui_gas_pool"
 path = "src/main.rs"
-
 
 [dependencies]
 #sui-config = { path = "../sui-upstream/crates/sui-config" }

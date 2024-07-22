@@ -49,7 +49,7 @@ impl Command {
         let registry_service = mysten_metrics::start_prometheus_server(metric_address);
         let prometheus_registry = registry_service.default_registry();
         let telemetry_config = telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("off,sui_gas_station=debug")
+            .with_log_level("off,sui_gas_pool=debug")
             .with_env()
             .with_prom_registry(&prometheus_registry);
         let _guard = telemetry_config.init();
