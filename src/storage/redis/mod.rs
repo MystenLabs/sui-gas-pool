@@ -29,7 +29,7 @@ impl RedisStorage {
         sponsor_address: SuiAddress,
         metrics: Arc<StorageMetrics>,
     ) -> Self {
-        println!("Redis URL:" {redis_url});
+        println!("Redis URL: {}", redis_url);
         let client = redis::Client::open(redis_url).unwrap();
         let conn_manager = ConnectionManager::new(client).await.unwrap();
         Self {
