@@ -74,7 +74,9 @@ pub enum GasPoolStorageConfig {
 impl Default for GasPoolStorageConfig {
     fn default() -> Self {
         Self::Redis {
-            redis_url: "redis://127.0.0.1:6379".to_string(),
+            redis_url:  env::var("REDIS_URL")
+                            .expect("REDIS_URL not defined")
+                            .to_string(),
         }
     }
 }
