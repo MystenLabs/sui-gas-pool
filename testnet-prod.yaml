@@ -1,0 +1,15 @@
+---
+signer-config:
+  local:
+    keypair:  AHtlvODMiBZ/bls/mr6xjVKQ5eszvEdpOcWAuhnBt2Kg
+rpc-host-ip: 0.0.0.0
+rpc-port: 9600
+metrics-port: 9186
+gas-pool-config:
+  redis:
+    redis_url: "rediss://default:bae3f10c-cd71-42b5-939c-85faf169a856@master.aeon-redis.wgstln.euw1.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
+fullnode-url: "https://fullnode.testnet.sui.io:443"
+coin-init-config:
+  target-init-balance: 1000000000
+  refresh-interval-sec: 86400
+daily-gas-usage-cap: 1500000000000
