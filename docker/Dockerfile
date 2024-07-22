@@ -14,7 +14,7 @@ RUN cargo build --release
 # Production Image
 FROM debian:bullseye-slim AS runtime
 RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates
-COPY --from=builder /target/release/sui-gas-pool /usr/local/bin
+COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
 COPY testnet.yaml /usr/local/bin
 
 
