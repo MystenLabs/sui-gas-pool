@@ -32,6 +32,8 @@ impl RedisStorage {
         println!("Redis URL: {}", redis_url);
         let client = redis::Client::open(redis_url).unwrap();
         let conn_manager = ConnectionManager::new(client).await.unwrap();
+        println!("Connected to redis");
+
         Self {
             conn_manager,
             sponsor_str: sponsor_address.to_string(),
