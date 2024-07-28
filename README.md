@@ -110,7 +110,7 @@ to the gas pool.
 When we are starting up the gas pool for a given sponsor address for the first time, it will trigger the initialization
 process. It looks at all the SUI coins currently owned by the sponsor address, and split them into gas coins with a
 specified target balance. Once a day, it also looks at whether there is any coin owned by the sponsor address with a
-very large balance (NEW_COIN_BALANCE_FACTOR_THRESHOLD * target_init_balance), and if so it triggers initialization
+very large balance (NEW_COIN_BALANCE_FACTOR_THRESHOLD \* target_init_balance), and if so it triggers initialization
 process again on the newly detected coin. This allows us add funding to the gas pool.
 To speed up the initialization time, it is able to split coins into smaller coins in parallel.
 Before each initialization run, it acquires a lock from the store to ensure that no other initialization task is running
@@ -156,7 +156,7 @@ Below describes the steps to deploy a gas pool service:
 4. Create a YAML config file (see details below).
 5. Pick a secure secret token for the RPC server, this will be passed through the `GAS_STATION_AUTH` environment
    variable when starting the gas pool server.
-5. Deploy the gas pool server.
+6. Deploy the gas pool server.
 
 To create a YAML config file, you can use the following command to generate a sample config:
 
@@ -191,9 +191,9 @@ A description of these fields:
 - redis_url: The full URL of the Redis instance.
 - fullnode-url: The fullnode that the gas pool will be talking to.
 - coin-init-config
-    - target-init-balance: The targeting initial balance of each coin (in MIST). For instance if you specify 100000000
-      which is 0.1 SUI, the gas pool will attempt to split its gas coin into smaller gas coins each with 0.1 SUI balance
-      during initialization.
-    - refresh-interval-sec: The interval to look at all gas coins owned by the sponsor again and see if some new funding
-      has been added.
+  - target-init-balance: The targeting initial balance of each coin (in MIST). For instance if you specify 100000000
+    which is 0.1 SUI, the gas pool will attempt to split its gas coin into smaller gas coins each with 0.1 SUI balance
+    during initialization.
+  - refresh-interval-sec: The interval to look at all gas coins owned by the sponsor again and see if some new funding
+    has been added.
 - daily-gas-usage-cap: The total amount of gas usage allowed per day, as a safety cap.
