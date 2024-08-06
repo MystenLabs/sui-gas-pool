@@ -150,13 +150,16 @@ The `tool` binary currently supports a few helper commands:
 Below describes the steps to deploy a gas pool service:
 
 1. Get a sponsor address keypair, either by generating it manually if you want to use in-memory signer, or get a KMS
-   instance from some cloud providers (or implement your own).
+   instance from some cloud providers (or implement your own). Note that the **gas pool must use a dedicated address**,
+   and
+   this address cannot be used for any other purpose. Otherwise transactions sent outside of the gas pool could mess up
+   the gas coin setup.
 2. Send a sufficiently funded SUI coin into that address. This will be the initial funding of the gas pool.
 3. Deploy a Redis instance.
 4. Create a YAML config file (see details below).
 5. Pick a secure secret token for the RPC server, this will be passed through the `GAS_STATION_AUTH` environment
    variable when starting the gas pool server.
-5. Deploy the gas pool server.
+6. Deploy the gas pool server.
 
 To create a YAML config file, you can use the following command to generate a sample config:
 
