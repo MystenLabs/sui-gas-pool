@@ -52,7 +52,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Setup Redis
-        uses: shogo82148/actions-setup-redis@v1
+        uses: shogo82148/actions-setup-redis@431421ba965051b89e86c474fd7e6d25eff0087f # Pin redis v7.2.5
         with:
           redis-version: "7.x"
 
