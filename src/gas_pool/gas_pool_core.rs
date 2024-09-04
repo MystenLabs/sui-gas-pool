@@ -130,6 +130,7 @@ impl GasPool {
                 );
                 #[cfg(test)]
                 {
+                    self.sui_client.wait_for_object(new_gas_coin).await;
                     assert_eq!(
                         self.get_total_gas_coin_balance(payment).await,
                         new_balance as u64
