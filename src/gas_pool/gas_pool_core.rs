@@ -190,10 +190,13 @@ impl GasPool {
         let sponsor = tx_data.gas_data().owner;
         let sponsor_sig = retry_with_max_attempts!(
             async {
-                self.signer
-                    .sign_transaction(&tx_data)
-                    .await
-                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
+                self.signer.sign_transaction(&tx_data).await.tap_err(|err| {
+                    sentry::capture_message(
+                        &format!("Failed to sign transaction: {}", err.to_string()),
+                        sentry::Level::Error,
+                    );
+                    error!("Failed to sign transaction: {:?}", err)
+                })
             },
             3
         )?;
@@ -267,7 +270,16 @@ impl GasPool {
             self.gas_pool_store
                 .add_new_coins(gas_coins.clone())
                 .await
-                .tap_err(|err| error!("Failed to call update_gas_coins on storage: {:?}", err))
+                .tap_err(|err| {
+                    sentry::capture_message(
+                        &format!(
+                            "Failed to call update_gas_coins on storage: {}",
+                            err.to_string()
+                        ),
+                        sentry::Level::Error,
+                    );
+                    error!("Failed to call update_gas_coins on storage: {:?}", err)
+                })
         })
         .unwrap();
     }
@@ -300,6 +312,13 @@ impl GasPool {
             loop {
                 let expire_results = self.gas_pool_store.expire_coins().await;
                 let unlocked_coins = expire_results.unwrap_or_else(|err| {
+                    sentry::capture_message(
+                        &format!(
+                            "Failed to call expire_coins to the storage: {}",
+                            err.to_string()
+                        ),
+                        sentry::Level::Error,
+                    );
                     error!("Failed to call expire_coins to the storage: {:?}", err);
                     vec![]
                 });

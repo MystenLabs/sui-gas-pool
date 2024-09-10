@@ -99,10 +99,13 @@ impl CoinSplitEnv {
                 rgp,
             );
             let sig = retry_forever!(async {
-                self.signer
-                    .sign_transaction(&tx_data)
-                    .await
-                    .tap_err(|err| error!("Failed to sign transaction: {:?}", err))
+                self.signer.sign_transaction(&tx_data).await.tap_err(|err| {
+                    sentry::capture_message(
+                        &format!("Failed to sign transaction: {:?}", err.to_string()),
+                        sentry::Level::Error,
+                    );
+                    error!("Failed to sign transaction: {:?}", err)
+                })
             })
             .unwrap();
             let tx = Transaction::from_generic_sig_data(tx_data, vec![sig]);
@@ -122,6 +125,10 @@ impl CoinSplitEnv {
                     break response;
                 }
                 Err(e) => {
+                    sentry::capture_message(
+                        &format!("Failed to execute transaction: {:?}", e.to_string()),
+                        sentry::Level::Error,
+                    );
                     error!("Failed to execute transaction: {:?}", e);
                     coin = self
                         .sui_client
