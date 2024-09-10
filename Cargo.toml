@@ -32,6 +32,7 @@ sui-types = { git = "https://github.com/MystenLabs/sui", branch = "testnet", pac
 shared-crypto = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "shared-crypto" }
 telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "telemetry-subscribers" }
 
+sentry = "0.34.0"
 anyhow = "1.0.75"
 async-trait = "0.1.51"
 axum = "0.6.6"
