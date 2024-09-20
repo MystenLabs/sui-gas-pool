@@ -64,12 +64,15 @@ impl GasPool {
         gas_budget: u64,
         duration: Duration,
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
+        let cur_time = std::time::Instant::now();
         self.gas_usage_cap.check_usage().await?;
         let sponsor = self.signer.get_address();
         let (reservation_id, gas_coins) = self
             .gas_pool_store
             .reserve_gas_coins(gas_budget, duration.as_millis() as u64)
             .await?;
+        let elapsed = cur_time.elapsed().as_millis();
+        self.metrics.reserve_gas_latency_ms.observe(elapsed as u64);
         self.metrics
             .reserved_gas_coin_count_per_request
             .observe(gas_coins.len() as u64);
@@ -181,6 +184,7 @@ impl GasPool {
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let sponsor = tx_data.gas_data().owner;
+        let cur_time = std::time::Instant::now();
         let sponsor_sig = retry_with_max_attempts!(
             async {
                 self.signer
@@ -190,7 +194,12 @@ impl GasPool {
             },
             3
         )?;
+        let elapsed = cur_time.elapsed().as_millis();
+        self.metrics
+            .transaction_signing_latency_ms
+            .observe(elapsed as u64);
         debug!(?reservation_id, "Transaction signed by sponsor");
+
         let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
         let cur_time = std::time::Instant::now();
         let effects = self.sui_client.execute_transaction(tx, 3).await?;

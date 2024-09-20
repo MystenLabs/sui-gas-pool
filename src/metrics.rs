@@ -101,6 +101,8 @@ pub struct GasPoolCoreMetrics {
     pub num_expired_gas_coins: IntCounterVec,
     pub num_smashed_gas_coins: IntCounterVec,
     pub reserved_gas_coin_count_per_request: Histogram,
+    pub reserve_gas_latency_ms: Histogram,
+    pub transaction_signing_latency_ms: Histogram,
     pub transaction_execution_latency_ms: Histogram,
     pub num_gas_pool_invariant_violations: IntCounter,
     pub daily_gas_usage: IntGaugeVec,
@@ -128,6 +130,16 @@ impl GasPoolCoreMetrics {
                 registry,
             )
                 .unwrap(),
+            reserve_gas_latency_ms: Histogram::new_in_registry(
+                "reserve_gas_latency",
+                "Latency of gas reservation, in milliseconds",
+                registry,
+            ),
+            transaction_signing_latency_ms: Histogram::new_in_registry(
+                "transaction_signing_latency",
+                "Latency of transaction signing, in milliseconds",
+                registry,
+            ),
             transaction_execution_latency_ms: Histogram::new_in_registry(
                 "transaction_execution_latency",
                 "Latency of transaction execution, in milliseconds",
