@@ -33,7 +33,7 @@ impl GasPoolRpcClient {
     pub async fn health(&self) -> anyhow::Result<()> {
         let response = self
             .client
-            .get(format!("{}/", self.server_address))
+            .get(format!("{}/healthz", self.server_address))
             .send()
             .await?;
         if !response.status().is_success() {

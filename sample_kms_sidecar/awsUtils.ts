@@ -1,7 +1,7 @@
 import { KMSClient, SignCommand, VerifyCommand, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 
-import { Secp256k1PublicKey } from "@mysten/sui.js/keypairs/secp256k1";
-import { fromB64, toB64 } from "@mysten/sui.js/utils";
+import { Secp256k1PublicKey } from "@mysten/sui/keypairs/secp256k1";
+import { fromB64, toB64 } from "@mysten/sui/utils";
 
 import {
   toSerializedSignature,
@@ -11,10 +11,10 @@ import {
   SerializedSignature,
   messageWithIntent,
   IntentScope,
-} from "@mysten/sui.js/cryptography";
+} from "@mysten/sui/cryptography";
 
-import { TransactionBlock } from "@mysten/sui.js/transactions";
-import { getFullnodeUrl, SuiClient } from "@mysten/sui.js/client";
+import { TransactionBlock } from "@mysten/sui/transactions";
+import { getFullnodeUrl, SuiClient } from "@mysten/sui/client";
 import { blake2b } from "@noble/hashes/blake2b";
 
 import { secp256k1 } from "@noble/curves/secp256k1";

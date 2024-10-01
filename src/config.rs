@@ -74,9 +74,9 @@ pub enum GasPoolStorageConfig {
 impl Default for GasPoolStorageConfig {
     fn default() -> Self {
         Self::Redis {
-            redis_url:  env::var("REDIS_URL")
-                            .expect("REDIS_URL not defined")
-                            .to_string(),
+            redis_url: env::var("REDIS_URL")
+                .expect("REDIS_URL not defined")
+                .to_string(),
         }
     }
 }
@@ -100,6 +100,16 @@ impl Default for TxSignerConfig {
 
 impl TxSignerConfig {
     pub async fn new_signer(self) -> Arc<dyn TxSigner> {
+        // println!(
+        //     "{}",
+        //     SuiKeyPair::decode(
+        //         &env::var("SECRET_KEY_GAS_B64")
+        //             .expect("SECRET_KEY_GAS_B64 not defined")
+        //             .to_string(),
+        //     )
+        //     .unwrap()
+        //     .encode_base64()
+        // );
         match self {
             TxSignerConfig::Local { keypair } => TestTxSigner::new(
                 SuiKeyPair::decode_base64(
