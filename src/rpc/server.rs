@@ -56,7 +56,7 @@ impl GasPoolServer {
     ) -> Self {
         let state = ServerState::new(station, metrics);
         let app = Router::new()
-            .route("/", get(health))
+            .route("/healthz", get(health))
             .route("/version", get(version))
             .route("/debug_health_check", post(debug_health_check))
             .route("/v1/reserve_gas", post(reserve_gas))
