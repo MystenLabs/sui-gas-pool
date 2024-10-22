@@ -233,15 +233,13 @@ impl SuiClient {
                 .read_api()
                 .get_object_with_options(obj_ref.0, SuiObjectDataOptions::default())
                 .await;
-            match response {
-                Ok(SuiObjectResponse {
-                    data: Some(data), ..
-                }) => {
-                    if data.version == obj_ref.1 {
-                        break;
-                    }
+            if let Ok(SuiObjectResponse {
+                data: Some(data), ..
+            }) = response
+            {
+                if data.version == obj_ref.1 {
+                    break;
                 }
-                _ => (),
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
