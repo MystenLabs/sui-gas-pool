@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod kms_stress;
+
 use crate::rpc::client::GasPoolRpcClient;
 use clap::ValueEnum;
 use parking_lot::RwLock;

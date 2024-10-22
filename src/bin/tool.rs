@@ -4,6 +4,7 @@
 use clap::*;
 use std::path::PathBuf;
 use sui_config::Config;
+use sui_gas_station::benchmarks::kms_stress::run_kms_stress_test;
 use sui_gas_station::benchmarks::BenchmarkMode;
 use sui_gas_station::config::{GasPoolStorageConfig, GasStationConfig, TxSignerConfig};
 use sui_gas_station::rpc::client::GasPoolRpcClient;
@@ -36,6 +37,11 @@ pub enum ToolCommand {
         num_clients: u64,
         #[arg(long, help = "Benchmark mode.", default_value = "reserve-only")]
         benchmark_mode: BenchmarkMode,
+    },
+    #[clap(name = "stress-kms")]
+    StressKMS {
+        #[arg(long, help = "Full URL to the KMS signer")]
+        kms_url: String,
     },
     /// Generate a sample config file and put it in the specified path.
     #[clap(name = "generate-sample-config")]
@@ -87,6 +93,9 @@ impl ToolCommand {
                 benchmark_mode
                     .run_benchmark(gas_station_url, reserve_duration_sec, num_clients)
                     .await
+            }
+            ToolCommand::StressKMS { kms_url } => {
+                run_kms_stress_test(kms_url).await;
             }
             ToolCommand::GenerateSampleConfig {
                 config_path,
