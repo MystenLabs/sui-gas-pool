@@ -20,6 +20,7 @@ use sui_types::transaction::{
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 use super::gas_usage_cap::GasUsageCap;
@@ -28,9 +29,8 @@ const EXPIRATION_JOB_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct GasPoolContainer {
     inner: Arc<GasPool>,
-    _coin_unlocker_task: JoinHandle<()>,
-    // This is always Some. It is None only after the drop method is called.
-    cancel_sender: Option<tokio::sync::oneshot::Sender<()>>,
+    _coin_unlocker_tasks: Vec<JoinHandle<()>>,
+    cancel: CancellationToken,
 }
 
 pub struct GasPool {
@@ -66,10 +66,10 @@ impl GasPool {
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         let cur_time = std::time::Instant::now();
         self.gas_usage_cap.check_usage().await?;
-        let sponsor = self.signer.get_address();
+        let sponsor = self.signer.get_one_address();
         let (reservation_id, gas_coins) = self
             .gas_pool_store
-            .reserve_gas_coins(gas_budget, duration.as_millis() as u64)
+            .reserve_gas_coins(sponsor, gas_budget, duration.as_millis() as u64)
             .await?;
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics.reserve_gas_latency_ms.observe(elapsed as u64);
@@ -106,7 +106,7 @@ impl GasPool {
             "Payment coins in transaction: {:?}", payment
         );
         self.gas_pool_store
-            .ready_for_execution(reservation_id)
+            .ready_for_execution(sponsor, reservation_id)
             .await?;
         debug!(?reservation_id, "Reservation is ready for execution");
 
@@ -161,7 +161,7 @@ impl GasPool {
         // Regardless of whether the transaction succeeded, we need to release the coins.
         // Otherwise, we lose track of them. This is because `ready_for_execution` already takes
         // the coins out of the pool and will not be covered by the auto-release mechanism.
-        self.release_gas_coins(updated_coins).await;
+        self.release_gas_coins(sponsor, updated_coins).await;
         if smashed_coin_count > 0 {
             info!(
                 ?reservation_id,
@@ -260,11 +260,11 @@ impl GasPool {
     }
 
     /// Release gas coins back to the gas pool, by adding them to the storage.
-    async fn release_gas_coins(&self, gas_coins: Vec<GasCoin>) {
+    async fn release_gas_coins(&self, sponsor: SuiAddress, gas_coins: Vec<GasCoin>) {
         debug!("Trying to release gas coins: {:?}", gas_coins);
         retry_forever!(async {
             self.gas_pool_store
-                .add_new_coins(gas_coins.clone())
+                .add_new_coins(sponsor, gas_coins.clone())
                 .await
                 .tap_err(|err| error!("Failed to call update_gas_coins on storage: {:?}", err))
         })
@@ -293,11 +293,12 @@ impl GasPool {
 
     async fn start_coin_unlock_task(
         self: Arc<Self>,
-        mut cancel_receiver: tokio::sync::oneshot::Receiver<()>,
+        sponsor: SuiAddress,
+        cancel: CancellationToken,
     ) -> JoinHandle<()> {
         tokio::task::spawn(async move {
             loop {
-                let expire_results = self.gas_pool_store.expire_coins().await;
+                let expire_results = self.gas_pool_store.expire_coins(sponsor).await;
                 let unlocked_coins = expire_results.unwrap_or_else(|err| {
                     error!("Failed to call expire_coins to the storage: {:?}", err);
                     vec![]
@@ -312,12 +313,12 @@ impl GasPool {
                         .flatten()
                         .collect();
                     let count = latest_coins.len();
-                    self.release_gas_coins(latest_coins).await;
+                    self.release_gas_coins(sponsor, latest_coins).await;
                     info!("Released {:?} coins after expiration", count);
                 }
                 tokio::select! {
                     _ = tokio::time::sleep(EXPIRATION_JOB_INTERVAL) => {}
-                    _ = &mut cancel_receiver => {
+                    _ = cancel.cancelled() => {
                         info!("Coin unlocker task is cancelled");
                         break;
                     }
@@ -326,9 +327,9 @@ impl GasPool {
         })
     }
 
-    pub async fn query_pool_available_coin_count(&self) -> usize {
+    pub async fn query_pool_available_coin_count(&self, sponsor: SuiAddress) -> usize {
         self.gas_pool_store
-            .get_available_coin_count()
+            .get_available_coin_count(sponsor)
             .await
             .unwrap()
     }
@@ -342,6 +343,7 @@ impl GasPoolContainer {
         gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
     ) -> Self {
+        let sponsor_addresses = signer.get_all_addresses();
         let inner = GasPool::new(
             signer,
             gas_pool_store,
@@ -350,13 +352,19 @@ impl GasPoolContainer {
             Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
         )
         .await;
-        let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
-        let _coin_unlocker_task = inner.clone().start_coin_unlock_task(cancel_receiver).await;
+        let cancel = CancellationToken::new();
+
+        let mut _coin_unlocker_tasks = vec![];
+        for sponsor in sponsor_addresses {
+            let inner = inner.clone();
+            let task = inner.start_coin_unlock_task(sponsor, cancel.clone()).await;
+            _coin_unlocker_tasks.push(task);
+        }
 
         Self {
             inner,
-            _coin_unlocker_task,
-            cancel_sender: Some(cancel_sender),
+            _coin_unlocker_tasks,
+            cancel,
         }
     }
 
@@ -367,6 +375,6 @@ impl GasPoolContainer {
 
 impl Drop for GasPoolContainer {
     fn drop(&mut self) {
-        self.cancel_sender.take().unwrap().send(()).unwrap();
+        self.cancel.cancel();
     }
 }

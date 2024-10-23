@@ -47,7 +47,7 @@ pub async fn start_gas_station(
     debug!("Starting Sui cluster..");
     let (test_cluster, signer) = start_sui_cluster(init_gas_amounts).await;
     let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
-    let sponsor_address = signer.get_address();
+    let sponsor_address = signer.get_one_address();
     debug!("Starting storage. Sponsor address: {:?}", sponsor_address);
     let storage = connect_storage_for_testing(sponsor_address).await;
     let sui_client = SuiClient::new(&fullnode_url, None).await;

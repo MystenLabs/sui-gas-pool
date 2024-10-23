@@ -82,6 +82,7 @@ impl Default for GasPoolStorageConfig {
 pub enum TxSignerConfig {
     Local { keypair: SuiKeyPair },
     Sidecar { sidecar_url: String },
+    MultiSidecar { sidecar_urls: Vec<String> },
 }
 
 impl Default for TxSignerConfig {
@@ -97,7 +98,12 @@ impl TxSignerConfig {
     pub async fn new_signer(self) -> Arc<dyn TxSigner> {
         match self {
             TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
-            TxSignerConfig::Sidecar { sidecar_url } => SidecarTxSigner::new(sidecar_url).await,
+            TxSignerConfig::Sidecar { sidecar_url } => {
+                SidecarTxSigner::new(vec![sidecar_url]).await
+            }
+            TxSignerConfig::MultiSidecar { sidecar_urls } => {
+                SidecarTxSigner::new(sidecar_urls).await
+            }
         }
     }
 }

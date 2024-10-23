@@ -9451,6 +9451,7 @@ dependencies = [
  "test-cluster",
  "tokio",
  "tokio-retry",
+ "tokio-util 0.7.11",
  "tracing",
 ]
 
