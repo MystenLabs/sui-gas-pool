@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use sui_types::base_types::{random_object_ref, SuiAddress};
 use sui_types::transaction::{ProgrammableTransaction, TransactionData, TransactionKind};
 
-pub async fn run_kms_stress_test(kms_url: String) {
+pub async fn run_kms_stress_test(kms_url: String, num_tasks: usize) {
     let signer = SidecarTxSigner::new(kms_url).await;
     let test_tx_data = TransactionData::new(
         TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
@@ -28,9 +28,9 @@ pub async fn run_kms_stress_test(kms_url: String) {
     let stop_flag = Arc::new(AtomicBool::new(false));
 
     // Vector to hold worker task handles
-    let mut handles = Vec::with_capacity(200);
+    let mut handles = Vec::with_capacity(num_tasks);
 
-    for _ in 0..200 {
+    for _ in 0..num_tasks {
         let success_counter = Arc::clone(&success_counter);
         let failure_counter = Arc::clone(&failure_counter);
         let stop_flag = Arc::clone(&stop_flag);

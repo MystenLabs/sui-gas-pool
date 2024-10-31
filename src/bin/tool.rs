@@ -42,6 +42,12 @@ pub enum ToolCommand {
     StressKMS {
         #[arg(long, help = "Full URL to the KMS signer")]
         kms_url: String,
+        #[arg(
+            long,
+            default_value_t = 300,
+            help = "Number of tasks to spawn to send requests to servers."
+        )]
+        num_tasks: usize,
     },
     /// Generate a sample config file and put it in the specified path.
     #[clap(name = "generate-sample-config")]
@@ -94,8 +100,8 @@ impl ToolCommand {
                     .run_benchmark(gas_station_url, reserve_duration_sec, num_clients)
                     .await
             }
-            ToolCommand::StressKMS { kms_url } => {
-                run_kms_stress_test(kms_url).await;
+            ToolCommand::StressKMS { kms_url, num_tasks } => {
+                run_kms_stress_test(kms_url, num_tasks).await;
             }
             ToolCommand::GenerateSampleConfig {
                 config_path,
