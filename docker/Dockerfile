@@ -13,10 +13,12 @@ RUN cargo build --release
 
 # Production Image
 FROM debian:bookworm AS runtime
-RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl libssl1.1
+RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl wget
 COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
 COPY testnet-prod.yaml /usr/local/bin
 
+# libssl1.1 is not available in bookworm, so we need to install it from buster
+RUN echo "deb http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && apt-get update && apt-get install -y libssl1.1
 
 ARG BUILD_DATE
 ARG GIT_REVISION
