@@ -13,7 +13,7 @@ RUN cargo build --release
 
 # Production Image
 FROM debian:bookworm AS runtime
-RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl 
+RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl libssl1.1
 COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
 COPY testnet-prod.yaml /usr/local/bin
 
