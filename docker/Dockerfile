@@ -1,4 +1,4 @@
-FROM rust:1.79-bullseye  AS chef
+FROM rust:1.82-bullseye  AS chef
 WORKDIR sui
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
@@ -12,11 +12,13 @@ COPY src ./src
 RUN cargo build --release
 
 # Production Image
-FROM debian:bullseye-slim AS runtime
-RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates
+FROM debian:bookworm AS runtime
+RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl wget
 COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
 COPY testnet-prod.yaml /usr/local/bin
 
+# libssl1.1 is not available in bookworm, so we need to install it from buster
+RUN echo "deb http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && apt-get update && apt-get install -y libssl1.1
 
 ARG BUILD_DATE
 ARG GIT_REVISION
