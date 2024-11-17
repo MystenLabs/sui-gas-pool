@@ -13,7 +13,7 @@ RUN cargo build --release
 
 # Production Image
 FROM debian:bookworm AS runtime
-RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl wget haproxy
+RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl wget haproxy unzip
 COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
 COPY testnet-prod.yaml /usr/local/bin
 COPY haproxy.cfg /etc/haproxy/haproxy.cfg
