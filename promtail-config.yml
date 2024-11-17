@@ -1,0 +1,18 @@
+server:
+  http_listen_port: 9080  # Port for Promtail's own metrics
+
+positions:
+  filename: /tmp/positions.yaml  # Tracks the last read position in each log file
+
+clients:
+  - url: http://loki-loki.default.svc.cluster.local:3100/loki/api/v1/push  # Loki endpoint in the same Docker network
+
+scrape_configs:
+  - job_name: system
+    static_configs:
+      - targets:
+          - http://sui-gas-pool-sui-gas-pool.default.svc.cluster.local:8084
+        labels:
+          job: varlogs
+          __path__: /usr/local/bin/*.log.* 
+
