@@ -23,9 +23,10 @@ COPY promtail-config.yml /etc/promtail/config.yml
 RUN echo "deb http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && apt-get update && apt-get install -y libssl1.1
 
 # Download and install Promtail
-RUN curl -L -o /usr/local/bin/promtail.zip https://github.com/grafana/loki/releases/download/v2.8.0/promtail-linux-amd64.zip \
-    && unzip /usr/local/bin/promtail.zip -d /usr/local/bin/ \
-    && rm /usr/local/bin/promtail.zip \
+RUN curl -L -o /usr/local/bin/promtail-linux-amd64.zip https://github.com/grafana/loki/releases/download/v2.8.0/promtail-linux-amd64.zip \
+    && unzip -o /usr/local/bin/promtail-linux-amd64.zip -d /usr/local/bin/ \
+    && mv /usr/local/bin/promtail-linux-amd64 /usr/local/bin/promtail \
+    && rm /usr/local/bin/promtail-linux-amd64.zip \
     && chmod +x /usr/local/bin/promtail
 
 ARG BUILD_DATE
