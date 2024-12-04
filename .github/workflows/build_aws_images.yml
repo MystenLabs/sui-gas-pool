@@ -6,7 +6,7 @@ on:
       services:
         description: "Comma-separated list of services to build (no spaces)"
         required: true
-        default: '["dwallet-gas-pool"]'
+        default: '["sui-gas-pool"]'
       version:
         description: "Version number for the services (eg - v1/v2)"
         required: true
