@@ -15,3 +15,4 @@ scrape_configs:
         labels:
           job: varlogs
           __path__: /usr/local/bin/*.log.*
+          pool: sui-gas-pool # Added label for sui-gas-pool
