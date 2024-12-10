@@ -26,13 +26,13 @@ bytes-varint = { git = "https://github.com/arnohaase/bytes-varint.git", rev = "a
 #typed-store-derive = { path = "../sui-upstream/crates/typed-store-derive" }
 
 fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", branch = "main" }
-mysten-metrics = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "mysten-metrics" }
-sui-config = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "sui-config" }
-sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "sui-json-rpc-types" }
-sui-sdk = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "sui-sdk" }
-sui-types = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "sui-types" }
-shared-crypto = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "shared-crypto" }
-telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "telemetry-subscribers" }
+mysten-metrics = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "mysten-metrics" }
+sui-config = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-config" }
+sui-json-rpc-types = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-json-rpc-types" }
+sui-sdk = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-sdk" }
+sui-types = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-types" }
+shared-crypto = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "shared-crypto" }
+telemetry-subscribers = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "telemetry-subscribers" }
 
 sentry = "0.34.0"
 anyhow = "1.0.75"
@@ -66,8 +66,8 @@ serde_json = "1.0.108"
 [dev-dependencies]
 rand = "0.8.5"
 
-sui-swarm-config = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "sui-swarm-config" }
-test-cluster = { git = "https://github.com/MystenLabs/sui", rev="2d14167d22479da96c4c42df31f08f2f0043fc88", package = "test-cluster" }
+sui-swarm-config = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "sui-swarm-config" }
+test-cluster = { git = "https://github.com/MystenLabs/sui", branch = "testnet", package = "test-cluster" }
 
 [profile.release]
 panic = "abort"
