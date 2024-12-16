@@ -34,7 +34,7 @@ pub struct GasPoolContainer {
 }
 
 pub struct GasPool {
-    signer: Arc<dyn TxSigner>,
+    signer: Arc<TxSigner>,
     gas_pool_store: Arc<dyn Storage>,
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
@@ -43,7 +43,7 @@ pub struct GasPool {
 
 impl GasPool {
     pub async fn new(
-        signer: Arc<dyn TxSigner>,
+        signer: Arc<TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         sui_client: SuiClient,
         metrics: Arc<GasPoolCoreMetrics>,
@@ -274,19 +274,14 @@ impl GasPool {
     /// Performs an end-to-end flow of reserving gas, signing a transaction, and releasing the gas coins.
     pub async fn debug_check_health(&self) -> anyhow::Result<()> {
         let gas_budget = MIST_PER_SUI / 10;
-        let (_address, _reservation_id, gas_coins) =
+        let (sender, _reservation_id, gas_coins) =
             self.reserve_gas(gas_budget, Duration::from_secs(3)).await?;
         let tx_kind = TransactionKind::ProgrammableTransaction(
             ProgrammableTransactionBuilder::new().finish(),
         );
         // Since we just want to check the health of the signer, we don't need to actually execute the transaction.
-        let tx_data = TransactionData::new_with_gas_coins(
-            tx_kind,
-            SuiAddress::default(),
-            gas_coins,
-            gas_budget,
-            0,
-        );
+        let tx_data =
+            TransactionData::new_with_gas_coins(tx_kind, sender, gas_coins, gas_budget, 0);
         self.signer.sign_transaction(&tx_data).await?;
         Ok(())
     }
@@ -337,7 +332,7 @@ impl GasPool {
 
 impl GasPoolContainer {
     pub async fn new(
-        signer: Arc<dyn TxSigner>,
+        signer: Arc<TxSigner>,
         gas_pool_store: Arc<dyn Storage>,
         sui_client: SuiClient,
         gas_usage_daily_cap: u64,

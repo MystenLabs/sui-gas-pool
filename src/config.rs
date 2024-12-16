@@ -1,7 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::tx_signer::{SidecarTxSigner, TestTxSigner, TxSigner};
+use crate::tx_signer::in_memory_signer::InMemoryTxSigner;
+use crate::tx_signer::sidecar_signer::SidecarTxSigner;
+use crate::tx_signer::{TxSigner, TxSignerTrait};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::net::Ipv4Addr;
@@ -82,7 +84,15 @@ impl Default for GasPoolStorageConfig {
 pub enum TxSignerConfig {
     Local { keypair: SuiKeyPair },
     Sidecar { sidecar_url: String },
-    MultiSidecar { sidecar_urls: Vec<String> },
+    MultiSigner { signers: Vec<SingleSignerType> },
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SingleSignerType {
+    Local { keypair: SuiKeyPair },
+    Sidecar { sidecar_url: String },
 }
 
 impl Default for TxSignerConfig {
@@ -95,16 +105,28 @@ impl Default for TxSignerConfig {
 }
 
 impl TxSignerConfig {
-    pub async fn new_signer(self) -> Arc<dyn TxSigner> {
-        match self {
-            TxSignerConfig::Local { keypair } => TestTxSigner::new(keypair),
+    pub async fn new_signer(self) -> Arc<TxSigner> {
+        let all_signers: Vec<Arc<dyn TxSignerTrait>> = match self {
+            TxSignerConfig::Local { keypair } => vec![InMemoryTxSigner::new(keypair)],
             TxSignerConfig::Sidecar { sidecar_url } => {
-                SidecarTxSigner::new(vec![sidecar_url]).await
+                vec![SidecarTxSigner::new(sidecar_url).await]
             }
-            TxSignerConfig::MultiSidecar { sidecar_urls } => {
-                SidecarTxSigner::new(sidecar_urls).await
+            TxSignerConfig::MultiSigner { signers } => {
+                let mut all_signers: Vec<Arc<dyn TxSignerTrait>> = Vec::new();
+                for signer_config in signers {
+                    match signer_config {
+                        SingleSignerType::Local { keypair } => {
+                            all_signers.push(InMemoryTxSigner::new(keypair))
+                        }
+                        SingleSignerType::Sidecar { sidecar_url } => {
+                            all_signers.push(SidecarTxSigner::new(sidecar_url).await)
+                        }
+                    }
+                }
+                all_signers
             }
-        }
+        };
+        TxSigner::new(all_signers)
     }
 }
 

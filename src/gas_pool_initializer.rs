@@ -36,7 +36,7 @@ const MAX_INIT_DURATION_SEC: u64 = 60 * 60 * 12;
 struct CoinSplitEnv {
     target_init_coin_balance: u64,
     gas_cost_per_object: u64,
-    signer: Arc<dyn TxSigner>,
+    signer: Arc<TxSigner>,
     sponsor_address: SuiAddress,
     sui_client: SuiClient,
     task_queue: Arc<Mutex<VecDeque<JoinHandle<Vec<GasCoin>>>>>,
@@ -177,7 +177,7 @@ impl GasPoolInitializer {
         sui_client: SuiClient,
         storage: Arc<dyn Storage>,
         coin_init_config: CoinInitConfig,
-        signer: Arc<dyn TxSigner>,
+        signer: Arc<TxSigner>,
     ) -> Self {
         for address in signer.get_all_addresses() {
             if !storage.is_initialized(address).await.unwrap() {
@@ -211,7 +211,7 @@ impl GasPoolInitializer {
         sui_client: SuiClient,
         storage: Arc<dyn Storage>,
         coin_init_config: CoinInitConfig,
-        signer: Arc<dyn TxSigner>,
+        signer: Arc<TxSigner>,
         mut cancel_receiver: tokio::sync::oneshot::Receiver<()>,
     ) {
         loop {
@@ -243,7 +243,7 @@ impl GasPoolInitializer {
         storage: &Arc<dyn Storage>,
         mode: RunMode,
         target_init_coin_balance: u64,
-        signer: &Arc<dyn TxSigner>,
+        signer: &Arc<TxSigner>,
     ) {
         if storage
             .acquire_init_lock(sponsor_address, MAX_INIT_DURATION_SEC)

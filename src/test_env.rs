@@ -8,7 +8,8 @@ use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
 use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage_for_testing;
 use crate::sui_client::SuiClient;
-use crate::tx_signer::{TestTxSigner, TxSigner};
+use crate::tx_signer::in_memory_signer::InMemoryTxSigner;
+use crate::tx_signer::TxSigner;
 use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
@@ -21,7 +22,7 @@ use sui_types::transaction::{TransactionData, TransactionDataAPI};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::debug;
 
-pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<dyn TxSigner>) {
+pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<TxSigner>) {
     let (sponsor, keypair) = get_account_key_pair();
     let cluster = TestClusterBuilder::new()
         .with_accounts(vec![
@@ -37,7 +38,10 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<
         ])
         .build()
         .await;
-    (cluster, TestTxSigner::new(keypair.into()))
+    (
+        cluster,
+        TxSigner::new(vec![InMemoryTxSigner::new(keypair.into())]),
+    )
 }
 
 pub async fn start_gas_station(
