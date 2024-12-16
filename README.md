@@ -110,7 +110,7 @@ to the gas pool.
 When we are starting up the gas pool for a given sponsor address for the first time, it will trigger the initialization
 process. It looks at all the SUI coins currently owned by the sponsor address, and split them into gas coins with a
 specified target balance. Once a day, it also looks at whether there is any coin owned by the sponsor address with a
-very large balance (NEW_COIN_BALANCE_FACTOR_THRESHOLD * target_init_balance), and if so it triggers initialization
+very large balance (NEW_COIN_BALANCE_FACTOR_THRESHOLD \* target_init_balance), and if so it triggers initialization
 process again on the newly detected coin. This allows us add funding to the gas pool.
 To speed up the initialization time, it is able to split coins into smaller coins in parallel.
 Before each initialization run, it acquires a lock from the store to ensure that no other initialization task is running
@@ -125,7 +125,10 @@ implementations:
 1. KMS Sidecar: This allows us to manage private keys in a secure key management service such as AWS KMS. You will need
    to run a KMS sidecar that accepts signing requests through a JSON-RPC endpoint, that talks to AWS and signs
    transactions. We provided a [sample implementation](sample_kms_sidecar/) of such sidecar in the repo.
-2. In-memory: This allows the gas pool server to load a SuiKeyPair directly from file and use it to sign transactions.
+2. In-memory: This allows the gas pool server to load a [`SuiKeyPair`](https://github.com/MystenLabs/sui/blob/2873d7a2532343247d545d52bcd9d7ab138096bb/crates/sui-types/src/crypto.rs#L136) directly from file and use it to sign transactions. The config file expects a Base 64 encoded form of `SuiKeyPair`. You can obtain it using one the following ways:
+   - Using the `sui` binary to generate a new keypair by running `sui keytool generate ed25519`, and find the serialized keypair in the `<address>.key` file.
+   - If you have already imported your key to your local Sui client config, you can also find the keypair in `~/.sui/sui_config/sui.keystore`.
+   - More details of Sui key formats can be found in the [official document](https://docs.sui.io/references/cli/keytool).
 
 ## Binaries
 
@@ -194,9 +197,9 @@ A description of these fields:
 - redis_url: The full URL of the Redis instance.
 - fullnode-url: The fullnode that the gas pool will be talking to.
 - coin-init-config
-    - target-init-balance: The targeting initial balance of each coin (in MIST). For instance if you specify 100000000
-      which is 0.1 SUI, the gas pool will attempt to split its gas coin into smaller gas coins each with 0.1 SUI balance
-      during initialization.
-    - refresh-interval-sec: The interval to look at all gas coins owned by the sponsor again and see if some new funding
-      has been added.
+  - target-init-balance: The targeting initial balance of each coin (in MIST). For instance if you specify 100000000
+    which is 0.1 SUI, the gas pool will attempt to split its gas coin into smaller gas coins each with 0.1 SUI balance
+    during initialization.
+  - refresh-interval-sec: The interval to look at all gas coins owned by the sponsor again and see if some new funding
+    has been added.
 - daily-gas-usage-cap: The total amount of gas usage allowed per day, as a safety cap.
