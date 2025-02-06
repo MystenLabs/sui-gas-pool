@@ -9,7 +9,7 @@ use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
 // 2 SUI.
-pub const MAX_BUDGET: u64 = 2_000_000_000;
+pub const MAX_BUDGET: u64 = 5_000_000_000;
 
 // 10 mins.
 pub const MAX_DURATION_S: u64 = 10 * 60;
