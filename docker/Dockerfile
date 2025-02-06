@@ -15,7 +15,7 @@ RUN cargo build --release
 FROM debian:bookworm AS runtime
 RUN apt-get update && apt-get install -y libpq5 libjemalloc-dev ca-certificates curl wget haproxy unzip
 COPY --from=builder /target/release/sui_gas_pool /usr/local/bin
-COPY testnet-prod.yaml /usr/local/bin
+COPY mainnet.yaml /usr/local/bin
 COPY haproxy.cfg /etc/haproxy/haproxy.cfg
 COPY promtail-config.yml /etc/promtail/config.yml    
 COPY run_sui_gas_pool.sh /usr/local/bin/run_sui_gas_pool.sh

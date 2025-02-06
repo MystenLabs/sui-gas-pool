@@ -1,2 +1,0 @@
-2024-07-18T13:53:02.385521Z  INFO sui_gas_station::gas_pool_initializer: Coin init task waking up and looking for new coins to initialize
-2024-07-18T13:53:02.401833Z DEBUG sui_gas_station::storage::redis: Acquiring init lock at 1721310782 for 43200 seconds
