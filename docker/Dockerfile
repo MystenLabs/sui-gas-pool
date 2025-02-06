@@ -1,7 +1,8 @@
-FROM rust:1.82-bullseye  AS chef
+FROM rust:1.84-bullseye  AS chef
 WORKDIR sui
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+ENV RUST_MIN_STACK=16777216
 RUN apt-get update && apt-get install -y cmake clang
 
 # Build and cache all dependencies.
