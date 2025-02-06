@@ -9,14 +9,11 @@ use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage;
 use crate::sui_client::SuiClient;
 use clap::*;
-use sui_types::base_types::SuiAddress;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use sui_config::Config;
+use sui_types::base_types::SuiAddress;
 use tracing::info;
-
-
-
 
 #[derive(Parser)]
 #[command(

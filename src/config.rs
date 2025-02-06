@@ -68,16 +68,12 @@ impl Default for GasStationConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum GasPoolStorageConfig {
-    Redis { redis_url: String },
+    Redis,
 }
 
 impl Default for GasPoolStorageConfig {
     fn default() -> Self {
-        Self::Redis {
-            redis_url: env::var("REDIS_URL")
-                .expect("REDIS_URL not defined")
-                .to_string(),
-        }
+        Self::Redis
     }
 }
 
@@ -85,16 +81,13 @@ impl Default for GasPoolStorageConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TxSignerConfig {
-    Local { keypair: SuiKeyPair },
+    Local,
     Sidecar { sidecar_url: String },
 }
 
 impl Default for TxSignerConfig {
     fn default() -> Self {
-        let (_, keypair) = get_account_key_pair();
-        Self::Local {
-            keypair: keypair.into(),
-        }
+        Self::Local
     }
 }
 
@@ -111,7 +104,7 @@ impl TxSignerConfig {
         //     .encode_base64()
         // );
         match self {
-            TxSignerConfig::Local { keypair } => TestTxSigner::new(
+            TxSignerConfig::Local => TestTxSigner::new(
                 SuiKeyPair::decode_base64(
                     &env::var("SECRET_KEY_GAS_B64")
                         .expect("SECRET_KEY_GAS_B64 not defined")
