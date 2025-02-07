@@ -105,9 +105,9 @@ impl TxSignerConfig {
         // );
         match self {
             TxSignerConfig::Local => TestTxSigner::new(
-                SuiKeyPair::decode_base64(
-                    &env::var("SECRET_KEY_GAS_B64")
-                        .expect("SECRET_KEY_GAS_B64 not defined")
+                SuiKeyPair::decode(
+                    &env::var("SECRET_KEY_GAS")
+                        .expect("SECRET_KEY_GAS not defined")
                         .to_string(),
                 )
                 .unwrap(),
