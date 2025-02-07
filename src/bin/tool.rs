@@ -97,15 +97,11 @@ impl ToolCommand {
                         sidecar_url: "http://localhost:3000".to_string(),
                     }
                 } else {
-                    TxSignerConfig::Local {
-                        keypair: get_account_key_pair().1.into(),
-                    }
+                    TxSignerConfig::Local
                 };
                 let config = GasStationConfig {
                     signer_config,
-                    gas_pool_config: GasPoolStorageConfig::Redis {
-                        redis_url: "redis://127.0.0.1".to_string(),
-                    },
+                    gas_pool_config: GasPoolStorageConfig::Redis,
                     ..Default::default()
                 };
                 config.save(config_path).unwrap();
