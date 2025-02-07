@@ -4,7 +4,7 @@ rpc-host-ip: 0.0.0.0
 rpc-port: 9600
 metrics-port: 9186
 gas-pool-config: redis
-fullnode-url: "https://fullnode.testnet.sui.io:443"
+fullnode-url: "https://fullnode.mainnet.sui.io:443"
 coin-init-config:
   target-init-balance: 1000000000
   refresh-interval-sec: 86400
