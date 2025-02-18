@@ -56,7 +56,7 @@ impl SuiClient {
             let page = retry_forever!(async {
                 self.sui_client
                     .coin_read_api()
-                    .get_coins(address, None, cursor, None)
+                    .get_coins(address, None, cursor.clone(), None)
                     .await
                     .tap_err(|err| debug!("Failed to get owned gas coins: {:?}", err))
             })
