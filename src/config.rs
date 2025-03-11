@@ -19,8 +19,8 @@ pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
 const DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC: u64 = 60 * 60 * 24;
 pub const DEFAULT_DAILY_GAS_USAGE_CAP: u64 = 1500 * MIST_PER_SUI;
 
-pub static MAX_GAS_BUDGET: OnceCell<u64> = OnceCell::new();
-const DEFAULT_MAX_GAS_BUDGET: u64 = 2_000_000_000;
+pub(crate) static MAX_GAS_BUDGET: OnceCell<u64> = OnceCell::new();
+pub(crate) const DEFAULT_MAX_GAS_BUDGET: u64 = 2_000_000_000;
 
 // Use 127.0.0.1 for tests to avoid OS complaining about permissions.
 #[cfg(test)]

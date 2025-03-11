@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{config::MAX_GAS_BUDGET, types::ReservationID};
+use crate::{config::{DEFAULT_MAX_GAS_BUDGET, MAX_GAS_BUDGET}, types::ReservationID};
 use fastcrypto::encoding::Base64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,9 @@ pub struct ReserveGasRequest {
 
 impl ReserveGasRequest {
     pub fn check_validity(&self) -> anyhow::Result<()> {
-        let max_gas_budget = *MAX_GAS_BUDGET.get().unwrap();
+        let max_gas_budget = *MAX_GAS_BUDGET
+            .get()
+            .unwrap_or(&DEFAULT_MAX_GAS_BUDGET);
 
         if self.gas_budget == 0 {
             anyhow::bail!("Gas budget must be positive");
