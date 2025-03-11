@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::GasStationConfig;
+use crate::config::{GasStationConfig, MAX_GAS_BUDGET};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics, StorageMetrics};
@@ -39,7 +39,11 @@ impl Command {
             metrics_port,
             coin_init_config,
             daily_gas_usage_cap,
+            max_gas_budget,
         } = config;
+
+        // SAFETY: We only initialize once when starting up the system, so this should never fail.
+        MAX_GAS_BUDGET.set(max_gas_budget).expect("MAX_GAS_BUDGET should only be set once");
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
         let registry_service = mysten_metrics::start_prometheus_server(metric_address);

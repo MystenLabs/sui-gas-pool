@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::tx_signer::{SidecarTxSigner, TestTxSigner, TxSigner};
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::net::Ipv4Addr;
@@ -17,6 +18,9 @@ pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
 // 24 hours.
 const DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC: u64 = 60 * 60 * 24;
 pub const DEFAULT_DAILY_GAS_USAGE_CAP: u64 = 1500 * MIST_PER_SUI;
+
+pub static MAX_GAS_BUDGET: OnceCell<u64> = OnceCell::new();
+const DEFAULT_MAX_GAS_BUDGET: u64 = 2_000_000_000;
 
 // Use 127.0.0.1 for tests to avoid OS complaining about permissions.
 #[cfg(test)]
@@ -41,6 +45,8 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
+    #[serde(default = "default_max_gas_budget")]
+    pub max_gas_budget: u64,
 }
 
 impl Config for GasStationConfig {}
@@ -57,6 +63,7 @@ impl Default for GasStationConfig {
             fullnode_basic_auth: None,
             coin_init_config: Some(CoinInitConfig::default()),
             daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
+            max_gas_budget: DEFAULT_MAX_GAS_BUDGET,
         }
     }
 }
@@ -121,4 +128,8 @@ impl Default for CoinInitConfig {
             refresh_interval_sec: DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC,
         }
     }
+}
+
+fn default_max_gas_budget() -> u64 {
+    DEFAULT_MAX_GAS_BUDGET
 }

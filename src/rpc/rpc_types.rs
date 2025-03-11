@@ -1,15 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::ReservationID;
+use crate::{config::MAX_GAS_BUDGET, types::ReservationID};
 use fastcrypto::encoding::Base64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sui_json_rpc_types::{SuiObjectRef, SuiTransactionBlockEffects};
 use sui_types::base_types::{ObjectRef, SuiAddress};
-
-// 2 SUI.
-pub const MAX_BUDGET: u64 = 5_000_000_000;
 
 // 10 mins.
 pub const MAX_DURATION_S: u64 = 10 * 60;
@@ -22,11 +19,13 @@ pub struct ReserveGasRequest {
 
 impl ReserveGasRequest {
     pub fn check_validity(&self) -> anyhow::Result<()> {
+        let max_gas_budget = *MAX_GAS_BUDGET.get().unwrap();
+
         if self.gas_budget == 0 {
             anyhow::bail!("Gas budget must be positive");
         }
-        if self.gas_budget > MAX_BUDGET {
-            anyhow::bail!("Gas budget must be less than {}", MAX_BUDGET);
+        if self.gas_budget > max_gas_budget {
+            anyhow::bail!("Gas budget must be less than {}", max_gas_budget);
         }
         if self.reserve_duration_secs == 0 {
             anyhow::bail!("Reserve duration must be positive");
