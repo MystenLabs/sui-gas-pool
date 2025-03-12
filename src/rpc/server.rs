@@ -15,6 +15,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router, TypedHeader};
 use fastcrypto::encoding::Base64;
+use sui_sdk::error::{Error, JsonRpcError};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -281,6 +282,22 @@ async fn execute_tx_impl(
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);
             metrics.num_failed_execute_tx_requests.inc();
+
+            if let Some(sui_error) = err.downcast_ref::<Error>() {
+                if let Error::RpcError(rpc_error) = sui_error {
+                    // this is a reference to the error :(
+                    // (*rpc_error).into(); plz not work
+                    let json_rpc_error: JsonRpcError = (*rpc_error).into();
+
+                    if json_rpc_error.is_execution_error() {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            Json(ExecuteTxResponse::new_err(err)),
+                        );
+                    }
+                }
+            }
+
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ExecuteTxResponse::new_err(err)),
