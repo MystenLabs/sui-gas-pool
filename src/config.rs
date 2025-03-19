@@ -41,7 +41,9 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
-    pub allow_gas_coins_usage: bool,
+    /// Allows to use the same sender as sponsor. Do not set to true unless you have a specific or
+    /// niche use case.
+    pub allow_same_sender_as_sponsor: bool,
 }
 
 impl Config for GasStationConfig {}
@@ -58,7 +60,7 @@ impl Default for GasStationConfig {
             fullnode_basic_auth: None,
             coin_init_config: Some(CoinInitConfig::default()),
             daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
-            allow_gas_coins_usage: false,
+            allow_same_sender_as_sponsor: false,
         }
     }
 }
