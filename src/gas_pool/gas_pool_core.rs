@@ -39,6 +39,7 @@ pub struct GasPool {
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
     gas_usage_cap: Arc<GasUsageCap>,
+    allow_gas_coin_usage: bool,
 }
 
 impl GasPool {
@@ -48,6 +49,7 @@ impl GasPool {
         sui_client: SuiClient,
         metrics: Arc<GasPoolCoreMetrics>,
         gas_usage_cap: Arc<GasUsageCap>,
+        allow_gas_coin_usage: bool,
     ) -> Arc<Self> {
         let pool = Self {
             signer,
@@ -55,6 +57,7 @@ impl GasPool {
             sui_client,
             metrics,
             gas_usage_cap,
+            allow_gas_coin_usage,
         };
         Arc::new(pool)
     }
@@ -93,7 +96,7 @@ impl GasPool {
         if !self.signer.is_valid_address(&sponsor) {
             bail!("Sponsor {:?} is not registered", sponsor);
         };
-        Self::check_transaction_validity(&tx_data)?;
+        self.check_transaction_validity(&tx_data)?;
         let payment: Vec<_> = tx_data
             .gas_data()
             .payment
@@ -185,6 +188,7 @@ impl GasPool {
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
         let sponsor = tx_data.gas_data().owner;
         let cur_time = std::time::Instant::now();
+
         let sponsor_sig = retry_with_max_attempts!(
             async {
                 self.signer
@@ -200,7 +204,12 @@ impl GasPool {
             .observe(elapsed as u64);
         debug!(?reservation_id, "Transaction signed by sponsor");
 
-        let tx = Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, user_sig]);
+        let sigs = if self.allow_gas_coin_usage {
+            vec![user_sig]
+        } else {
+            vec![sponsor_sig, user_sig]
+        };
+        let tx = Transaction::from_generic_sig_data(tx_data, sigs);
         let cur_time = std::time::Instant::now();
         let effects = self.sui_client.execute_transaction(tx, 3).await?;
         debug!(?reservation_id, "Transaction executed");
@@ -226,7 +235,7 @@ impl GasPool {
             .sum()
     }
 
-    fn check_transaction_validity(tx_data: &TransactionData) -> anyhow::Result<()> {
+    fn check_transaction_validity(&self, tx_data: &TransactionData) -> anyhow::Result<()> {
         let mut all_args = vec![];
         for command in tx_data.kind().iter_commands() {
             match command {
@@ -250,12 +259,16 @@ impl GasPool {
                 Command::Upgrade(_, _, _, _) => {}
             };
         }
-        let uses_gas = all_args
-            .into_iter()
-            .any(|arg| matches!(*arg, Argument::GasCoin));
-        if uses_gas {
-            bail!("Gas coin can only be used to pay gas")
-        };
+
+        if !self.allow_gas_coin_usage {
+            let uses_gas = all_args
+                .into_iter()
+                .any(|arg| matches!(*arg, Argument::GasCoin));
+
+            if uses_gas {
+                bail!("Gas coin can only be used to pay gas")
+            };
+        }
         Ok(())
     }
 
@@ -341,6 +354,7 @@ impl GasPoolContainer {
         sui_client: SuiClient,
         gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
+        allow_gas_coins_usage: bool,
     ) -> Self {
         let inner = GasPool::new(
             signer,
@@ -348,6 +362,7 @@ impl GasPoolContainer {
             sui_client,
             metrics,
             Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
+            allow_gas_coins_usage,
         )
         .await;
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();

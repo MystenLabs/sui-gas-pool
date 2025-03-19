@@ -67,6 +67,7 @@ pub async fn start_gas_station(
         sui_client,
         DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
+        false,
     )
     .await;
     (test_cluster, station)

@@ -41,6 +41,7 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
+    pub allow_gas_coins_usage: bool,
 }
 
 impl Config for GasStationConfig {}
@@ -57,6 +58,7 @@ impl Default for GasStationConfig {
             fullnode_basic_auth: None,
             coin_init_config: Some(CoinInitConfig::default()),
             daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
+            allow_gas_coins_usage: false,
         }
     }
 }

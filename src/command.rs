@@ -39,6 +39,7 @@ impl Command {
             metrics_port,
             coin_init_config,
             daily_gas_usage_cap,
+            allow_gas_coins_usage,
         } = config;
 
         let metric_address = SocketAddr::new(IpAddr::V4(rpc_host_ip), metrics_port);
@@ -77,6 +78,7 @@ impl Command {
             sui_client,
             daily_gas_usage_cap,
             core_metrics,
+            allow_gas_coins_usage,
         )
         .await;
 
