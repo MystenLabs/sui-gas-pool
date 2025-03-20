@@ -39,7 +39,7 @@ pub struct GasPool {
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
     gas_usage_cap: Arc<GasUsageCap>,
-    allow_same_sender_as_sponsor: bool,
+    advanced_faucet_mode: bool,
 }
 
 impl GasPool {
@@ -49,7 +49,7 @@ impl GasPool {
         sui_client: SuiClient,
         metrics: Arc<GasPoolCoreMetrics>,
         gas_usage_cap: Arc<GasUsageCap>,
-        allow_same_sender_as_sponsor: bool,
+        advanced_faucet_mode: bool,
     ) -> Arc<Self> {
         let pool = Self {
             signer,
@@ -57,7 +57,7 @@ impl GasPool {
             sui_client,
             metrics,
             gas_usage_cap,
-            allow_same_sender_as_sponsor,
+            advanced_faucet_mode,
         };
         Arc::new(pool)
     }
@@ -96,15 +96,6 @@ impl GasPool {
         if !self.signer.is_valid_address(&sponsor) {
             bail!("Sponsor {:?} is not registered", sponsor);
         };
-        let sender = tx_data.sender();
-        // ensure that the sponsor and sender are the same if `allow_same_sender_as_sponsor` is set
-        // and that the signer is the same as the sender
-        if self.allow_same_sender_as_sponsor
-            && sponsor == sender
-            && *tx_data.signers().first() != sender
-        {
-            bail!("Expected that the transaction signer is the same as the sender");
-        }
         self.check_transaction_validity(&tx_data)?;
         let payment: Vec<_> = tx_data
             .gas_data()
@@ -199,7 +190,7 @@ impl GasPool {
         let cur_time = std::time::Instant::now();
 
         // we already checked that it is allowed to use the same sender as sponsor
-        let sigs = if self.allow_same_sender_as_sponsor {
+        let sigs = if self.advanced_faucet_mode {
             vec![user_sig]
         } else {
             let sponsor_sig = retry_with_max_attempts!(
@@ -270,7 +261,19 @@ impl GasPool {
             };
         }
 
-        if !self.allow_same_sender_as_sponsor {
+        let sender = tx_data.sender();
+        let sponsor = tx_data.gas_data().owner;
+        // ensure that the sponsor and sender are the same if `advanced_faucet_mode` is set to true
+        // and that the signer is the same as the sender.
+        // SAFETY: as signers is a NonEmpty type, calling first() is fine and should always
+        // retrieve the first element.
+        if self.advanced_faucet_mode && (sponsor != sender || *tx_data.signers().first() != sender)
+        {
+            bail!("Expected that the transaction signer is the same as the sender");
+        }
+
+        // When advanced-faucet-mode is enabled, we allow the use of gas coins in the transaction
+        if !self.advanced_faucet_mode {
             let uses_gas = all_args
                 .into_iter()
                 .any(|arg| matches!(*arg, Argument::GasCoin));
@@ -279,6 +282,7 @@ impl GasPool {
                 bail!("Gas coin can only be used to pay gas")
             };
         }
+
         Ok(())
     }
 
@@ -364,7 +368,7 @@ impl GasPoolContainer {
         sui_client: SuiClient,
         gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
-        allow_same_sender_as_sponsor: bool,
+        advanced_faucet_mode: bool,
     ) -> Self {
         let inner = GasPool::new(
             signer,
@@ -372,7 +376,7 @@ impl GasPoolContainer {
             sui_client,
             metrics,
             Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
-            allow_same_sender_as_sponsor,
+            advanced_faucet_mode,
         )
         .await;
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();

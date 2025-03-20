@@ -41,9 +41,10 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
-    /// Allows to use the same sender as sponsor. Do not set to true unless you have a specific or
-    /// niche use case.
-    pub allow_same_sender_as_sponsor: bool,
+    /// Enables the gas pool to work as a faucet, where the sender is the same as the sponsor.
+    /// Do not set to true unless you have a specific or niche use case and you understand the
+    /// risks associated with this mode.
+    pub advanced_faucet_mode: bool,
 }
 
 impl Config for GasStationConfig {}
@@ -60,7 +61,7 @@ impl Default for GasStationConfig {
             fullnode_basic_auth: None,
             coin_init_config: Some(CoinInitConfig::default()),
             daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
-            allow_same_sender_as_sponsor: false,
+            advanced_faucet_mode: false,
         }
     }
 }
