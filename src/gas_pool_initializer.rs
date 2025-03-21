@@ -111,6 +111,24 @@ impl CoinSplitEnv {
                 tx.digest()
             );
             let result = self.sui_client.execute_transaction(tx.clone(), 10).await;
+            let result = if let Ok(result) = result {
+                result
+                    .effects
+                    .ok_or_else(|| anyhow::anyhow!("Transaction failed"))
+            } else {
+                error!("Failed to execute transaction: {:?}", result.unwrap_err());
+                coin = self
+                    .sui_client
+                    .get_latest_gas_objects([coin.object_ref.0])
+                    .await
+                    .into_iter()
+                    .next()
+                    .unwrap()
+                    .1
+                    .unwrap();
+                continue;
+            };
+
             match result {
                 Ok(effects) => {
                     assert!(

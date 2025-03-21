@@ -10,7 +10,10 @@ use crate::{retry_forever, retry_with_max_attempts};
 use anyhow::bail;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
+use sui_json_rpc_types::{
+    BalanceChange, SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI,
+    SuiTransactionBlockResponse,
+};
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
@@ -126,26 +129,43 @@ impl GasPool {
             .execute_transaction_impl(reservation_id, tx_data, user_sig)
             .await;
         let updated_coins = match &response {
-            Ok(effects) => {
-                let new_gas_coin = effects.gas_object().reference.to_object_ref();
-                let new_balance =
-                    total_gas_coin_balance as i64 - effects.gas_cost_summary().net_gas_usage();
-                debug!(
-                    ?reservation_id,
-                    "New gas coin balance after execution: {}", new_balance,
-                );
-                #[cfg(test)]
-                {
-                    self.sui_client.wait_for_object(new_gas_coin).await;
-                    assert_eq!(
-                        self.get_total_gas_coin_balance(payment).await,
-                        new_balance as u64
+            Ok(tx_response) => {
+                if let Some(ref effects) = tx_response.effects {
+                    let new_gas_coin = effects.gas_object().reference.to_object_ref();
+                    let new_balance = total_gas_coin_balance as i64
+                        - self.net_usage(
+                            reservation_id,
+                            effects,
+                            tx_response.balance_changes.as_ref(),
+                        )?;
+                    debug!(
+                        ?reservation_id,
+                        "New gas coin balance after execution: {}", new_balance,
                     );
+                    #[cfg(test)]
+                    {
+                        self.sui_client.wait_for_object(new_gas_coin).await;
+                        assert_eq!(
+                            self.get_total_gas_coin_balance(payment).await,
+                            new_balance as u64
+                        );
+                    }
+                    vec![GasCoin {
+                        object_ref: new_gas_coin,
+                        balance: new_balance as u64,
+                    }]
+                } else {
+                    debug!(
+                        ?reservation_id,
+                        "Querying latest gas state since transaction failed"
+                    );
+                    self.sui_client
+                        .get_latest_gas_objects(payment)
+                        .await
+                        .into_values()
+                        .flatten()
+                        .collect()
                 }
-                vec![GasCoin {
-                    object_ref: new_gas_coin,
-                    balance: new_balance as u64,
-                }]
             }
             Err(_) => {
                 debug!(
@@ -177,7 +197,10 @@ impl GasPool {
         }
         info!(?reservation_id, "Transaction execution finished");
 
-        response
+        response.and_then(|r| {
+            r.effects
+                .ok_or_else(|| anyhow::anyhow!("Transaction execution failed: no effects returned"))
+        })
     }
 
     async fn execute_transaction_impl(
@@ -185,7 +208,7 @@ impl GasPool {
         reservation_id: ReservationID,
         tx_data: TransactionData,
         user_sig: GenericSignature,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let sponsor = tx_data.gas_data().owner;
         let cur_time = std::time::Instant::now();
 
@@ -212,19 +235,30 @@ impl GasPool {
         };
         let tx = Transaction::from_generic_sig_data(tx_data, sigs);
         let cur_time = std::time::Instant::now();
-        let effects = self.sui_client.execute_transaction(tx, 3).await?;
+        let tx_response = self.sui_client.execute_transaction(tx, 3).await?;
+
+        let effects = tx_response
+            .effects
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Transaction execution failed: no effects returned"))?;
         debug!(?reservation_id, "Transaction executed");
         let elapsed = cur_time.elapsed().as_millis();
         self.metrics
             .transaction_execution_latency_ms
             .observe(elapsed as u64);
-        let net_gas_usage = effects.gas_cost_summary().net_gas_usage();
-        let new_daily_usage = self.gas_usage_cap.update_usage(net_gas_usage).await;
+
+        let net_coin_amount_usage: i64 = self.net_usage(
+            reservation_id,
+            &effects,
+            tx_response.balance_changes.as_ref(),
+        )?;
+
+        let new_daily_usage = self.gas_usage_cap.update_usage(net_coin_amount_usage).await;
         self.metrics
             .daily_gas_usage
             .with_label_values(&[&sponsor.to_string()])
             .set(new_daily_usage);
-        Ok(effects)
+        Ok(tx_response)
     }
 
     async fn get_total_gas_coin_balance(&self, gas_coins: Vec<ObjectID>) -> u64 {
@@ -234,6 +268,49 @@ impl GasPool {
             .flatten()
             .map(|coin| coin.balance)
             .sum()
+    }
+
+    /// Calculate the net gas usage based on the effects in the normal mode, and using balance
+    /// changes if advanced faucet mode is enabled. For the latter, we need to use balance changes
+    /// as we're using the gas coins to transfer SUI, rather than just pay for gas.
+    fn net_usage(
+        &self,
+        reservation_id: ReservationID,
+        effects: &SuiTransactionBlockEffects,
+        balance_changes: Option<&Vec<BalanceChange>>,
+    ) -> anyhow::Result<i64> {
+        let net_usage = if self.advanced_faucet_mode {
+            // we need to actually use balance changes to calculate how much SUI was used, because
+            // we're using the gas coins to transfer SUI.
+            let Some(net_gas_usage) = balance_changes.map(|balance| {
+                balance
+                    .into_iter()
+                    .filter_map(|c| (c.owner == effects.gas_object().owner).then_some(c.amount))
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .sum::<i128>()
+            }) else {
+                error!(
+                    ?reservation_id,
+                    "No balance changes found when trying to calculate net SUI usage"
+                );
+                bail!("No balance changes found")
+            };
+
+            net_gas_usage.try_into().map_err(|_| {
+                error!(
+                    ?reservation_id,
+                    "Failed to convert balance changes sum to i64 when advanced faucet mode is enabled"
+                );
+                anyhow::anyhow!(
+                    "Failed to convert balance changes sum to i64 when advanced faucet mode is enabled"
+                )
+            })?
+        } else {
+            effects.gas_cost_summary().net_gas_usage()
+        };
+
+        Ok(net_usage)
     }
 
     fn check_transaction_validity(&self, tx_data: &TransactionData) -> anyhow::Result<()> {
