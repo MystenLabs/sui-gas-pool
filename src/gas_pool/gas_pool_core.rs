@@ -125,6 +125,7 @@ impl GasPool {
             ?reservation_id,
             "Total gas coin balance prior to execution: {}", total_gas_coin_balance,
         );
+
         let response = self
             .execute_transaction_impl(reservation_id, tx_data, user_sig)
             .await;
@@ -289,6 +290,7 @@ impl GasPool {
                     .collect::<Vec<_>>()
                     .into_iter()
                     .sum::<i128>()
+                    .abs()
             }) else {
                 error!(
                     ?reservation_id,

@@ -6,7 +6,10 @@ mod gas_usage_cap;
 
 #[cfg(test)]
 mod tests {
-    use crate::test_env::{create_test_transaction, start_gas_station};
+    use crate::test_env::{
+        create_test_transaction, create_test_transaction_with_same_sender_as_sponsor,
+        start_gas_station, start_gas_station_with_cluster, start_sui_cluster,
+    };
     use shared_crypto::intent::{Intent, IntentMessage};
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
@@ -208,14 +211,17 @@ mod tests {
         assert!(effects.status().is_ok());
     }
 
+    // #[ignore]
     #[tokio::test]
     async fn test_advanced_faucet_mode() {
         // In advanced faucet mode, the sponsor and sender have to be the same, and the signer
         // needs to be the sender.
 
         // Create a test cluster with advanced faucet mode enabled.
-        let (test_cluster, container) = start_gas_station(
-            vec![MIST_PER_SUI; 10],
+        let (mut test_cluster, signer, keypair) = start_sui_cluster(vec![MIST_PER_SUI; 10]).await;
+        let (_, container) = start_gas_station_with_cluster(
+            &mut test_cluster,
+            signer,
             MIST_PER_SUI,
             true, /* advanced_faucet_mode */
         )
@@ -225,5 +231,33 @@ mod tests {
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
             .await
             .unwrap();
+        let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins1).await;
+        let tx = station
+            .execute_transaction(reservation_id1, tx_data, user_sig)
+            .await;
+        assert!(tx.is_err());
+        assert!(tx
+            .unwrap_err()
+            .to_string()
+            .contains("Expected that the transaction signer is the same as the sender"));
+
+        let (sponsor, reservation_id2, gas_coins2) = station
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (tx_data, user_sig) = create_test_transaction_with_same_sender_as_sponsor(
+            &mut test_cluster,
+            sponsor,
+            keypair,
+            gas_coins2,
+        )
+        .await;
+
+        let tx = station
+            .execute_transaction(reservation_id2, tx_data, user_sig)
+            .await;
+
+        assert!(tx.is_ok());
+        assert!(tx.unwrap().status().is_ok());
     }
 }
