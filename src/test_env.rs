@@ -43,6 +43,7 @@ pub async fn start_sui_cluster(init_gas_amounts: Vec<u64>) -> (TestCluster, Arc<
 pub async fn start_gas_station(
     init_gas_amounts: Vec<u64>,
     target_init_coin_balance: u64,
+    advanced_faucet_mode: bool,
 ) -> (TestCluster, GasPoolContainer) {
     debug!("Starting Sui cluster..");
     let (test_cluster, signer) = start_sui_cluster(init_gas_amounts).await;
@@ -67,7 +68,7 @@ pub async fn start_gas_station(
         sui_client,
         DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
-        false,
+        advanced_faucet_mode,
     )
     .await;
     (test_cluster, station)
@@ -76,8 +77,10 @@ pub async fn start_gas_station(
 pub async fn start_rpc_server_for_testing(
     init_gas_amounts: Vec<u64>,
     target_init_balance: u64,
+    advanced_faucet_mode: bool,
 ) -> (TestCluster, GasPoolContainer, GasPoolServer) {
-    let (test_cluster, container) = start_gas_station(init_gas_amounts, target_init_balance).await;
+    let (test_cluster, container) =
+        start_gas_station(init_gas_amounts, target_init_balance, advanced_faucet_mode).await;
     let localhost = localhost_for_testing();
     std::env::set_var(AUTH_ENV_NAME, "some secret");
     let server = GasPoolServer::new(
