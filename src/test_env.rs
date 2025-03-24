@@ -14,7 +14,7 @@ use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
 use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{get_account_key_pair, KeypairTraits, SuiKeyPair, ToFromBytes};
+use sui_types::crypto::{get_account_key_pair, KeypairTraits, SuiKeyPair};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{TransactionData, TransactionDataAPI};
@@ -187,6 +187,34 @@ pub async fn create_test_transaction_with_same_sender_as_sponsor(
     // TODO: Add proper sponsored transaction support to test tx builder.
     tx_data.gas_data_mut().payment = gas_coins;
     tx_data.gas_data_mut().owner = sponsor;
+    let user_sig = test_cluster
+        .sign_transaction(&tx_data)
+        .into_data()
+        .tx_signatures_mut_for_testing()
+        .pop()
+        .unwrap();
+    (tx_data, user_sig)
+}
+
+pub async fn create_pay_sui_transaction_same_sender_as_sponsor(
+    test_cluster: &mut TestCluster,
+    sponsor: SuiAddress,
+    keypair: SuiKeyPair,
+    gas_coins: Vec<ObjectRef>,
+) -> (TransactionData, GenericSignature) {
+    test_cluster.wallet_mut().add_account(None, keypair);
+
+    let recipient = get_account_key_pair();
+    let tx_data = TransactionData::new_pay_sui(
+        sponsor,
+        gas_coins[1..].to_vec(),
+        vec![recipient.0],
+        vec![1_000_000_000],
+        gas_coins[0],
+        10000000,
+        test_cluster.get_reference_gas_price().await,
+    )
+    .unwrap();
     let user_sig = test_cluster
         .sign_transaction(&tx_data)
         .into_data()

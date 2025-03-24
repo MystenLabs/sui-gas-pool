@@ -7,8 +7,9 @@ mod gas_usage_cap;
 #[cfg(test)]
 mod tests {
     use crate::test_env::{
-        create_test_transaction, create_test_transaction_with_same_sender_as_sponsor,
-        start_gas_station, start_gas_station_with_cluster, start_sui_cluster,
+        create_pay_sui_transaction_same_sender_as_sponsor, create_test_transaction,
+        create_test_transaction_with_same_sender_as_sponsor, start_gas_station,
+        start_gas_station_with_cluster, start_sui_cluster,
     };
     use shared_crypto::intent::{Intent, IntentMessage};
     use std::time::Duration;
@@ -248,13 +249,31 @@ mod tests {
         let (tx_data, user_sig) = create_test_transaction_with_same_sender_as_sponsor(
             &mut test_cluster,
             sponsor,
-            keypair,
+            keypair.copy(),
             gas_coins2,
         )
         .await;
 
         let tx = station
             .execute_transaction(reservation_id2, tx_data, user_sig)
+            .await;
+
+        assert!(tx.is_ok());
+        assert!(tx.unwrap().status().is_ok());
+
+        let (sponsor, reservation_id3, gas_coins3) = station
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (tx_data, user_sig) = create_pay_sui_transaction_same_sender_as_sponsor(
+            &mut test_cluster,
+            sponsor,
+            keypair,
+            gas_coins3,
+        )
+        .await;
+        let tx = station
+            .execute_transaction(reservation_id3, tx_data, user_sig)
             .await;
 
         assert!(tx.is_ok());
