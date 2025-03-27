@@ -13,11 +13,12 @@ use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
-use sui_types::base_types::{ObjectRef, SuiAddress};
+use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::crypto::get_account_key_pair;
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{TransactionData, TransactionDataAPI};
+use tap::{Pipe, Tap};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::debug;
 
@@ -104,7 +105,9 @@ pub async fn create_test_transaction(
         .get_one_gas_object_owned_by_address(user)
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+        .tap_mut( |a| a.0 = ObjectID::random());
+
     let mut tx_data = test_cluster
         .test_transaction_builder_with_gas_object(user, gas_coins[0])
         .await

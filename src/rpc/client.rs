@@ -138,6 +138,25 @@ impl GasPoolRpcClient {
             tx_bytes: Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()),
             user_sig: Base64::from_bytes(user_sig.as_ref()),
         };
+
+        let mut headers2 = HeaderMap::new();
+        headers2.insert(
+            AUTHORIZATION,
+            format!("Bearer {}", read_auth_env()).parse().unwrap(),
+        );
+
+        let response2 = self
+        .client
+        .post(format!("{}/v1/execute_tx", self.server_address))
+        .headers(headers2)
+        .json(&request)
+        .send()
+        .await;
+
+        assert_eq!(response2.unwrap().status(), 600);
+
+
+
         let response = self
             .client
             .post(format!("{}/v1/execute_tx", self.server_address))
@@ -145,8 +164,11 @@ impl GasPoolRpcClient {
             .json(&request)
             .send()
             .await?
-            .json::<ExecuteTxResponse>()
-            .await?;
+            .json::<ExecuteTxResponse>().await?;
+
+
+       
+
         response.effects.ok_or_else(|| {
             anyhow::anyhow!(response
                 .error
