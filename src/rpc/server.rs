@@ -15,11 +15,11 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router, TypedHeader};
 use fastcrypto::encoding::Base64;
-use sui_sdk::error::{Error, JsonRpcError};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+use sui_sdk::error::{Error, JsonRpcError};
 use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
@@ -282,26 +282,44 @@ async fn execute_tx_impl(
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);
             metrics.num_failed_execute_tx_requests.inc();
+            let message = err.to_string();
 
-            if let Some(sui_error) = err.downcast_ref::<Error>() {
-                if let Error::RpcError(rpc_error) = sui_error {
-                    // this is a reference to the error :(
-                    // (*rpc_error).into(); plz not work
-                    let json_rpc_error: JsonRpcError = (*rpc_error).into();
+            let sui_error = err.downcast::<Error>().ok();
+            sui_error
+                .map(|sdk_error| {
+                    let default_err = (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                            "Failed to execute transaction: {:?}",
+                            sdk_error
+                        ))),
+                    );
+                    match sdk_error {
+                        Error::RpcError(rpc_error) => {
+                            let json_rpc_error: JsonRpcError = rpc_error.into();
 
-                    if json_rpc_error.is_execution_error() {
-                        return (
-                            StatusCode::BAD_REQUEST,
-                            Json(ExecuteTxResponse::new_err(err)),
-                        );
+                            if json_rpc_error.is_execution_error() {
+                                (
+                                    StatusCode::BAD_REQUEST,
+                                    Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                                        "Execution error: {:?}",
+                                        json_rpc_error
+                                    ))),
+                                )
+                            } else {
+                                default_err
+                            }
+                        }
+                        _ => default_err,
                     }
-                }
-            }
-
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ExecuteTxResponse::new_err(err)),
-            )
+                })
+                .unwrap_or((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                        "Failed to execute transaction: {:?}",
+                        message
+                    ))),
+                ))
         }
     }
 }
