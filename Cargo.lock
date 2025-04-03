@@ -8564,6 +8564,7 @@ dependencies = [
  "futures-util",
  "git-version",
  "itertools 0.12.1",
+ "moka",
  "mysten-metrics",
  "once_cell",
  "parking_lot 0.12.3",
