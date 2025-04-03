@@ -267,7 +267,7 @@ impl MultiGetObjectOwners for SuiClient {
     async fn multi_get_object_owners(
         &self,
         object_ids: Vec<ObjectID>,
-    ) -> anyhow::Result<HashMap<ObjectID, Owner>> {
+    ) -> anyhow::Result<HashMap<ObjectID, (Owner, u64)>> {
         retry_with_max_attempts!(
             async {
                 let results = self
@@ -287,7 +287,8 @@ impl MultiGetObjectOwners for SuiClient {
                     let Some(owner) = &data.owner else {
                         anyhow::bail!("Failed to get object owner: {:?}", r);
                     };
-                    owner_map.insert(data.object_id, owner.clone());
+                    let version = data.version.value();
+                    owner_map.insert(data.object_id, (owner.clone(), version));
                 }
                 Ok(owner_map)
             },
@@ -351,18 +352,24 @@ mod tests {
         // Verify results
         assert_eq!(
             owner_map.get(&obj1.id()),
-            Some(&Owner::AddressOwner(owner1))
+            Some(&(Owner::AddressOwner(owner1), obj1.version().value()))
         );
         assert_eq!(
             owner_map.get(&obj2.id()),
-            Some(&Owner::AddressOwner(owner2))
+            Some(&(Owner::AddressOwner(owner2), obj2.version().value()))
         );
-        assert_eq!(owner_map.get(&obj3.id()), Some(&Owner::Immutable));
+        assert_eq!(
+            owner_map.get(&obj3.id()),
+            Some(&(Owner::Immutable, obj3.version().value()))
+        );
         assert_eq!(
             owner_map.get(&obj4.id()),
-            Some(&Owner::Shared {
-                initial_shared_version: obj4.version()
-            })
+            Some(&(
+                Owner::Shared {
+                    initial_shared_version: obj4.version(),
+                },
+                obj4.version().value()
+            ))
         );
 
         // Verify we got all objects
