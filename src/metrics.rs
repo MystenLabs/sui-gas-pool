@@ -106,6 +106,7 @@ pub struct GasPoolCoreMetrics {
     pub transaction_execution_latency_ms: Histogram,
     pub num_gas_pool_invariant_violations: IntCounter,
     pub daily_gas_usage: IntGaugeVec,
+    pub num_equivocation_detected: IntCounter,
 }
 
 impl GasPoolCoreMetrics {
@@ -155,6 +156,12 @@ impl GasPoolCoreMetrics {
                 "daily_gas_usage",
                 "Current daily gas usage",
                 &["sponsor"],
+                registry,
+            )
+                .unwrap(),
+            num_equivocation_detected: register_int_counter_with_registry!(
+                "num_equivocation_detected",
+                "Total number of equivocation detected",
                 registry,
             )
                 .unwrap(),

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::metrics::GasPoolCoreMetrics;
+use crate::object_locks::ObjectLockManager;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
 use crate::tx_signer::TxSigner;
@@ -39,6 +40,7 @@ pub struct GasPool {
     sui_client: SuiClient,
     metrics: Arc<GasPoolCoreMetrics>,
     gas_usage_cap: Arc<GasUsageCap>,
+    object_lock_manager: Arc<ObjectLockManager>,
 }
 
 impl GasPool {
@@ -49,12 +51,14 @@ impl GasPool {
         metrics: Arc<GasPoolCoreMetrics>,
         gas_usage_cap: Arc<GasUsageCap>,
     ) -> Arc<Self> {
+        let object_lock_manager = Arc::new(ObjectLockManager::new(Arc::new(sui_client.clone())));
         let pool = Self {
             signer,
             gas_pool_store,
             sui_client,
             metrics,
             gas_usage_cap,
+            object_lock_manager,
         };
         Arc::new(pool)
     }
@@ -183,6 +187,13 @@ impl GasPool {
         tx_data: TransactionData,
         user_sig: GenericSignature,
     ) -> anyhow::Result<SuiTransactionBlockEffects> {
+        let _object_locks = self
+            .object_lock_manager
+            .try_acquire_locks(reservation_id, &tx_data)
+            .await
+            .tap_err(|_| {
+                self.metrics.num_equivocation_detected.inc();
+            })?;
         let sponsor = tx_data.gas_data().owner;
         let cur_time = std::time::Instant::now();
         let sponsor_sig = retry_with_max_attempts!(

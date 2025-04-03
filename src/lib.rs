@@ -8,6 +8,7 @@ pub mod errors;
 pub mod gas_pool;
 pub mod gas_pool_initializer;
 pub mod metrics;
+pub mod object_locks;
 pub mod rpc;
 pub mod storage;
 pub mod sui_client;
