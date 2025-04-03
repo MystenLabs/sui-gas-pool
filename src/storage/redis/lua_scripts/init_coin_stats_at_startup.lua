@@ -25,8 +25,10 @@ if not total_balance then
     for _, coin in ipairs(elements) do
         -- Each coin is just a string, using "," to separate fields. The first is balance.
         local idx, _ = string.find(coin, ',', 1)
-        local balance = string.sub(coin, 1, idx - 1)
-        total_balance = total_balance + tonumber(balance)
+        local balance_str = string.sub(coin, 1, idx - 1)
+        -- Handle scientific notation by converting to a regular number
+        local balance = tonumber(string.format("%.0f", tonumber(balance_str)))
+        total_balance = total_balance + balance
     end
     redis.call('SET', t_available_coin_total_balance, total_balance)
 end
