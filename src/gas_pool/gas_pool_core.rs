@@ -124,10 +124,17 @@ impl GasPool {
             "Total gas coin balance prior to execution: {}", total_gas_coin_balance,
         );
         let response = self
-            .execute_transaction_impl(reservation_id, tx_data, user_sig)
+            .execute_transaction_impl(reservation_id, tx_data.clone(), user_sig)
             .await;
         let updated_coins = match &response {
             Ok(effects) => {
+                let mutated_objects = effects
+                    .mutated()
+                    .iter()
+                    .map(|o| (o.object_id(), o.owner.clone(), o.version().value()))
+                    .collect();
+                self.object_lock_manager
+                    .update_cache_post_execution(&tx_data, mutated_objects);
                 let new_gas_coin = effects.gas_object().reference.to_object_ref();
                 let new_balance =
                     total_gas_coin_balance as i64 - effects.gas_cost_summary().net_gas_usage();
