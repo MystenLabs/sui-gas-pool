@@ -3,7 +3,7 @@
 
 use moka::sync::SegmentedCache;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use sui_types::base_types::ObjectID;
 use sui_types::object::Owner;
 use sui_types::transaction::{InputObjectKind, TransactionData, TransactionDataAPI};
@@ -28,9 +28,9 @@ pub struct ObjectLockManager {
     /// and is_address_owned is true if the object is address-owned, false if it is not.
     /// Using SegmentedCache for better concurrent performance.
     address_owned_cache: SegmentedCache<ObjectID, (u64, bool)>,
-    /// A cache that tracks the objects that are currently locked due to
+    /// Tracks the objects that are currently locked due to
     /// active execution of a transaction.
-    locked_owned_objects: Arc<Mutex<HashSet<ObjectID>>>,
+    locked_owned_objects: Arc<RwLock<HashSet<ObjectID>>>,
     sui_client: Arc<dyn MultiGetObjectOwners>,
 }
 
@@ -41,7 +41,7 @@ pub struct ObjectLockManager {
 pub struct ObjectLocks {
     reservation_id: u64,
     locked_objects: Vec<ObjectID>,
-    global_locked_owned_objects: Arc<Mutex<HashSet<ObjectID>>>,
+    global_locked_owned_objects: Arc<RwLock<HashSet<ObjectID>>>,
 }
 
 impl ObjectLocks {
@@ -59,13 +59,13 @@ impl ObjectLocks {
 
 impl Drop for ObjectLocks {
     fn drop(&mut self) {
-        match self.global_locked_owned_objects.lock() {
+        match self.global_locked_owned_objects.write() {
             Ok(mut locks) => {
                 self.remove_locks_from_set(&mut locks);
             }
             Err(poisoned) => {
                 let mut locks = poisoned.into_inner();
-                warn!(?self.reservation_id, "Poisoned Mutex for objects: {:?}", self.locked_objects);
+                warn!(?self.reservation_id, "Poisoned RwLock for objects: {:?}", self.locked_objects);
                 self.remove_locks_from_set(&mut locks);
             }
         }
@@ -76,7 +76,7 @@ impl ObjectLockManager {
     pub fn new(sui_client: Arc<dyn MultiGetObjectOwners>) -> Self {
         Self {
             address_owned_cache: SegmentedCache::new(CACHE_SIZE, 8),
-            locked_owned_objects: Arc::new(Mutex::new(HashSet::new())),
+            locked_owned_objects: Arc::new(RwLock::new(HashSet::new())),
             sui_client,
         }
     }
@@ -94,9 +94,25 @@ impl ObjectLockManager {
     ) -> Result<ObjectLocks, anyhow::Error> {
         debug!(?reservation_id, "Trying to acquire object locks");
         let imm_or_owned_objects = self.get_imm_or_owned_non_gas_objects(tx_data)?;
+        {
+            // While some of the objects in imm_or_owned_objects may be immutable,
+            // we could still perform a preliminary check to see if any object is already locked.
+            // This can help avoid unnecessary write locks, as well as unnecessary queries to the
+            // RPC nodes when trying to filtering out owned objects.
+            let Ok(locks) = self.locked_owned_objects.read() else {
+                anyhow::bail!("Failed to acquire read lock for locked_owned_objects");
+            };
+            for (obj, _) in &imm_or_owned_objects {
+                if locks.contains(obj) {
+                    debug!(?reservation_id, "Object is already locked: {:?}", obj);
+                    anyhow::bail!("Object is already locked: {:?}", obj);
+                }
+            }
+            // locks is dropped here.
+        }
         let owned_objects = self.filter_owned_objects(imm_or_owned_objects).await?;
-        let Ok(mut locks) = self.locked_owned_objects.lock() else {
-            anyhow::bail!("Failed to acquire lock for locked_owned_objects");
+        let Ok(mut locks) = self.locked_owned_objects.write() else {
+            anyhow::bail!("Failed to acquire write lock for locked_owned_objects");
         };
         for obj in &owned_objects {
             if locks.contains(obj) {
@@ -242,6 +258,7 @@ impl ObjectLockManager {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::sync::Mutex;
     use sui_types::base_types::random_object_ref;
     use sui_types::base_types::{SequenceNumber, SuiAddress};
     use sui_types::digests::ObjectDigest;
@@ -359,7 +376,7 @@ mod tests {
 
         // Verify lock is held
         {
-            let locked_objects = manager.locked_owned_objects.lock().unwrap();
+            let locked_objects = manager.locked_owned_objects.read().unwrap();
             assert!(locked_objects.contains(&obj_id));
         }
 
@@ -368,7 +385,7 @@ mod tests {
 
         // Verify lock is released
         {
-            let locked_objects = manager.locked_owned_objects.lock().unwrap();
+            let locked_objects = manager.locked_owned_objects.read().unwrap();
             assert!(!locked_objects.contains(&obj_id));
         }
     }
