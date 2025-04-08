@@ -27,8 +27,7 @@ if not total_balance then
         local idx, _ = string.find(coin, ',', 1)
         local balance_str = string.sub(coin, 1, idx - 1)
         -- Handle scientific notation by converting to a regular number
-        local balance = tonumber(string.format("%.0f", tonumber(balance_str)))
-        total_balance = total_balance + balance
+        total_balance = total_balance + math.tointeger(balance)
     end
     redis.call('SET', t_available_coin_total_balance, total_balance)
 end
