@@ -6,7 +6,11 @@ mod gas_usage_cap;
 
 #[cfg(test)]
 mod tests {
-    use crate::test_env::{create_test_transaction, start_gas_station};
+    use crate::test_env::{
+        create_pay_sui_transaction_same_sender_as_sponsor, create_test_transaction,
+        create_test_transaction_with_same_sender_as_sponsor, start_gas_station,
+        start_gas_station_with_cluster, start_sui_cluster,
+    };
     use shared_crypto::intent::{Intent, IntentMessage};
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
@@ -17,10 +21,16 @@ mod tests {
         transaction::{TransactionData, TransactionKind},
     };
 
+    const TEST_ADVANCED_FAUCET_MODE: bool = false;
+
     #[tokio::test]
     async fn test_station_reserve_gas() {
-        let (_test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (_test_cluster, container) = start_gas_station(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
         let station = container.get_gas_pool_arc();
         let (sponsor1, _res_id1, gas_coins) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -43,7 +53,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_e2e_gas_station_flow() {
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
+        let (test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
         let station = container.get_gas_pool_arc();
         assert!(station
             .reserve_gas(MIST_PER_SUI + 1, Duration::from_secs(10))
@@ -73,7 +84,8 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_transaction() {
         telemetry_subscribers::init_for_testing();
-        let (_test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
+        let (_test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
@@ -99,7 +111,8 @@ mod tests {
     #[tokio::test]
     async fn test_coin_expiration() {
         telemetry_subscribers::init_for_testing();
-        let (test_cluster, container) = start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI).await;
+        let (test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI, Duration::from_secs(1))
@@ -128,8 +141,12 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_incomplete_gas_usage() {
-        let (test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (test_cluster, container) = start_gas_station(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -159,8 +176,12 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_mixed_up_gas_coins() {
-        let (test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (test_cluster, container) = start_gas_station(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id1, gas_coins1) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -189,5 +210,73 @@ mod tests {
             .await
             .unwrap();
         assert!(effects.status().is_ok());
+    }
+
+    // #[ignore]
+    #[tokio::test]
+    async fn test_advanced_faucet_mode() {
+        // In advanced faucet mode, the sponsor and sender have to be the same, and the signer
+        // needs to be the sender.
+
+        // Create a test cluster with advanced faucet mode enabled.
+        let (mut test_cluster, signer, keypair) = start_sui_cluster(vec![MIST_PER_SUI; 10]).await;
+        let (_, container) = start_gas_station_with_cluster(
+            &mut test_cluster,
+            signer,
+            MIST_PER_SUI,
+            true, /* advanced_faucet_mode */
+        )
+        .await;
+        let station = container.get_gas_pool_arc();
+        let (sponsor, reservation_id1, gas_coins1) = station
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins1).await;
+        let tx = station
+            .execute_transaction(reservation_id1, tx_data, user_sig)
+            .await;
+        assert!(tx.is_err());
+        assert!(tx
+            .unwrap_err()
+            .to_string()
+            .contains("Expected that the transaction signer is the same as the sender"));
+
+        let (sponsor, reservation_id2, gas_coins2) = station
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (tx_data, user_sig) = create_test_transaction_with_same_sender_as_sponsor(
+            &mut test_cluster,
+            sponsor,
+            keypair.copy(),
+            gas_coins2,
+        )
+        .await;
+
+        let tx = station
+            .execute_transaction(reservation_id2, tx_data, user_sig)
+            .await;
+
+        assert!(tx.is_ok());
+        assert!(tx.unwrap().status().is_ok());
+
+        let (sponsor, reservation_id3, gas_coins3) = station
+            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .await
+            .unwrap();
+        let (tx_data, user_sig) = create_pay_sui_transaction_same_sender_as_sponsor(
+            &mut test_cluster,
+            sponsor,
+            keypair,
+            gas_coins3,
+        )
+        .await;
+        let tx = station
+            .execute_transaction(reservation_id3, tx_data, user_sig)
+            .await;
+
+        assert!(tx.is_ok());
+        assert!(tx.unwrap().status().is_ok());
     }
 }
