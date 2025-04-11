@@ -5,21 +5,20 @@ import {
     GetPublicKeyCommand,
 } from "@aws-sdk/client-kms";
 
-import { Secp256k1PublicKey } from "@mysten/sui.js/keypairs/secp256k1";
-import { fromB64, toB64 } from "@mysten/sui.js/utils";
+import { Secp256k1PublicKey } from "@mysten/sui/keypairs/secp256k1";
+import { fromBase64, toBase64 } from "@mysten/sui/utils";
 
 import {
     toSerializedSignature,
     SIGNATURE_FLAG_TO_SCHEME,
     SignatureScheme,
     SignatureFlag,
-    SerializedSignature,
     messageWithIntent,
-    IntentScope,
-} from "@mysten/sui.js/cryptography";
+    IntentScope
+} from "@mysten/sui/cryptography";
 
-import { TransactionBlock } from "@mysten/sui.js/transactions";
-import { getFullnodeUrl, SuiClient } from "@mysten/sui.js/client";
+import { Transaction } from "@mysten/sui/transactions";
+import { getFullnodeUrl, SuiClient } from "@mysten/sui/client";
 import { blake2b } from "@noble/hashes/blake2b";
 
 import { secp256k1 } from "@noble/curves/secp256k1";
@@ -174,7 +173,7 @@ async function getSerializedSignature(
         sui_pubkey instanceof Secp256k1PublicKey ? sui_pubkey : undefined;
 
     // Call toSerializedSignature
-    const serializedSignature: SerializedSignature = toSerializedSignature({
+    const serializedSignature: string = toSerializedSignature({
         signatureScheme: signature_scheme,
         signature: signature,
         publicKey: publicKeyToUse,
@@ -198,8 +197,8 @@ export async function signAndVerify(tx_bytes: Uint8Array) {
     // digest needs to be hash of intent message
     // H(intent | tx_bytes)
     const digest = blake2b(intentMessage, { dkLen: 32 });
-    console.log("TX Bytes:", toB64(tx_bytes));
-    console.log("Digest:", toB64(digest));
+    console.log("TX Bytes:", toBase64(tx_bytes));
+    console.log("Digest:", toBase64(digest));
 
     try {
         // Sign the digest
@@ -229,7 +228,7 @@ export async function signAndVerify(tx_bytes: Uint8Array) {
         // verify signature with sui
         if (publicKeyToUse !== undefined) {
             console.log("Verifying Sui Signature against TX");
-            const isValid = await publicKeyToUse.verifyTransactionBlock(
+            const isValid = await publicKeyToUse.verifyTransaction(
                 tx_bytes,
                 serializedSignature,
             );
