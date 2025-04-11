@@ -1,6 +1,6 @@
 import express from "express";
-import { fromB64 } from "@mysten/sui.js/utils";
-import { Secp256k1PublicKey } from "@mysten/sui.js/keypairs/secp256k1";
+import { fromBase64 } from "@mysten/sui/utils";
+import { Secp256k1PublicKey } from "@mysten/sui/keypairs/secp256k1";
 import { getPublicKey, signAndVerify } from "./awsUtils";
 
 async function main() {
@@ -18,7 +18,7 @@ async function main() {
             const publicKeyToUse = publicKey instanceof Secp256k1PublicKey
                 ? publicKey
                 : undefined;
-            const suiPubkeyAddress = publicKeyToUse.toSuiAddress();
+            const suiPubkeyAddress = publicKeyToUse!.toSuiAddress();
             res.json({ suiPubkeyAddress });
         } catch (error) {
             console.error(error);
