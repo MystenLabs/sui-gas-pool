@@ -136,29 +136,14 @@ impl GasPool {
         let updated_coins = match &response {
             Ok(tx_response) => {
                 if let Some(ref effects) = tx_response.effects {
-                    let new_gas_coin = effects.gas_object().reference.to_object_ref();
-                    let new_balance = total_gas_coin_balance as i64
-                        - self.net_usage(
-                            reservation_id,
-                            effects,
-                            tx_response.balance_changes.as_ref(),
-                        )?;
-                    debug!(
-                        ?reservation_id,
-                        "New gas coin balance after execution: {}", new_balance,
-                    );
-                    #[cfg(test)]
-                    {
-                        self.sui_client.wait_for_object(new_gas_coin).await;
-                        assert_eq!(
-                            self.get_total_gas_coin_balance(payment).await,
-                            new_balance as u64
-                        );
-                    }
-                    vec![GasCoin {
-                        object_ref: new_gas_coin,
-                        balance: new_balance as u64,
-                    }]
+                    self.get_coins_after_tx(
+                        total_gas_coin_balance,
+                        tx_response,
+                        effects,
+                        payment.clone(),
+                        reservation_id,
+                    )
+                    .await
                 } else {
                     debug!(
                         ?reservation_id,
@@ -185,6 +170,7 @@ impl GasPool {
                     .collect()
             }
         };
+
         let smashed_coin_count = payment_count - updated_coins.len();
         // Regardless of whether the transaction succeeded, we need to release the coins.
         // Otherwise, we lose track of them. This is because `ready_for_execution` already takes
@@ -455,6 +441,59 @@ impl GasPool {
             .get_available_coin_count()
             .await
             .unwrap()
+    }
+
+    /// Get the gas coins after transaction execution. If the transaction was successful, we
+    /// calculate the new balance of the gas coin and use that, otherwise we query the latest gas
+    /// objects.
+    async fn get_coins_after_tx(
+        &self,
+        total_gas_coin_balance: u64,
+        tx_response: &SuiTransactionBlockResponse,
+        effects: &SuiTransactionBlockEffects,
+        payment: Vec<ObjectID>,
+        reservation_id: u64,
+    ) -> Vec<GasCoin> {
+        let new_gas_coin = effects.gas_object().reference.to_object_ref();
+        let net_usage = self.net_usage(
+            reservation_id,
+            effects,
+            tx_response.balance_changes.as_ref(),
+        );
+        match net_usage {
+            Ok(new_balance) => {
+                let new_balance = total_gas_coin_balance as i64 - new_balance;
+                debug!(
+                    ?reservation_id,
+                    "New gas coin balance after execution: {}", new_balance,
+                );
+                #[cfg(test)]
+                {
+                    self.sui_client.wait_for_object(new_gas_coin).await;
+                    assert_eq!(
+                        self.get_total_gas_coin_balance(payment).await,
+                        new_balance as u64
+                    );
+                }
+                vec![GasCoin {
+                    object_ref: new_gas_coin,
+                    balance: new_balance as u64,
+                }]
+            }
+            Err(err) => {
+                error!(
+                    ?reservation_id,
+                    "Failed to calculate net gas usage: {:?}", err
+                );
+
+                self.sui_client
+                    .get_latest_gas_objects(payment.clone())
+                    .await
+                    .into_values()
+                    .flatten()
+                    .collect()
+            }
+        }
     }
 }
 

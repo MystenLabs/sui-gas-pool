@@ -205,5 +205,6 @@ A description of these fields:
     has been added.
 - daily-gas-usage-cap: The total amount of gas usage allowed per day, as a safety cap.
 - advanced-faucet-mode: This enables the gas pool to be configured to work in a faucet mode, where the sender and the sponsor
-    are the same, and gas coins are allowed to be used in the transaction. Do not use this unless you know what you are doing
-    as there are risk around the gas pool being depleted!
+    are the same, and gas coins are allowed to be used in the transaction other than gas payment, i.e. the balance of the gas
+    coin can be transferred away in an arbitrary way. Do not use this unless you know what you are doing as there are risks
+    around the gas pool being depleted!
