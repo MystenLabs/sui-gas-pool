@@ -184,6 +184,7 @@ coin-init-config:
   target-init-balance: 100000000
   refresh-interval-sec: 86400
 daily-gas-usage-cap: 1500000000000
+advanced-faucet-mode: false
 ```
 
 If you want to use in-memory signer, you can remove `--with-sidecar-signer` from the command.
@@ -203,3 +204,6 @@ A description of these fields:
   - refresh-interval-sec: The interval to look at all gas coins owned by the sponsor again and see if some new funding
     has been added.
 - daily-gas-usage-cap: The total amount of gas usage allowed per day, as a safety cap.
+- advanced-faucet-mode: This enables the gas pool to be configured to work in a faucet mode, where the sender and the sponsor
+    are the same, and gas coins are allowed to be used in the transaction. Do not use this unless you know what you are doing
+    as there are risk around the gas pool being depleted!

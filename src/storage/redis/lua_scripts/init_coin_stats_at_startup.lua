@@ -19,6 +19,8 @@ end
 
 local t_available_coin_total_balance = sponsor_address .. ':available_coin_total_balance'
 local total_balance = redis.call('GET', t_available_coin_total_balance)
+redis.log(redis.LOG_WARNING, "total_balance before if: " .. tostring(total_balance))
+
 if not total_balance then
     local elements = redis.call('LRANGE', t_available_gas_coins, 0, -1)
     total_balance = 0
@@ -26,7 +28,10 @@ if not total_balance then
         -- Each coin is just a string, using "," to separate fields. The first is balance.
         local idx, _ = string.find(coin, ',', 1)
         local balance = string.sub(coin, 1, idx - 1)
-        total_balance = total_balance + tonumber(balance)
+        redis.log(redis.LOG_WARNING, "parsed balance: " .. balance)
+        -- Handle scientific notation by converting to a regular number
+        total_balance = total_balance + math.tointeger(balance)
+        redis.log(redis.LOG_WARNING, "updated total_balance: " .. total_balance)
     end
     redis.call('SET', t_available_coin_total_balance, total_balance)
 end
