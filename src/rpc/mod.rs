@@ -14,10 +14,16 @@ mod tests {
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::gas_coin::MIST_PER_SUI;
 
+    const TEST_ADVANCED_FAUCET_MODE: bool = false;
+
     #[tokio::test]
     async fn test_basic_rpc_flow() {
-        let (test_cluster, _container, server) =
-            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (test_cluster, _container, server) = start_rpc_server_for_testing(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
         let client = server.get_local_client();
         client.health().await.unwrap();
 
@@ -38,8 +44,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_auth() {
-        let (_test_cluster, _container, server) =
-            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (_test_cluster, _container, server) = start_rpc_server_for_testing(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
 
         let client = server.get_local_client();
         client.health().await.unwrap();
@@ -54,8 +64,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_debug_health_check() {
-        let (_test_cluster, _container, server) =
-            start_rpc_server_for_testing(vec![MIST_PER_SUI; 10], MIST_PER_SUI).await;
+        let (_test_cluster, _container, server) = start_rpc_server_for_testing(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
 
         let client = server.get_local_client();
         client.debug_health_check().await.unwrap();
