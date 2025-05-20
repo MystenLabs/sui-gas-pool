@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::tx_signer::{SidecarTxSigner, TxSigner};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use sui_types::base_types::{random_object_ref, SuiAddress};
 use sui_types::transaction::{ProgrammableTransaction, TransactionData, TransactionKind};
+
+use crate::tx_signer::sidecar_signer::SidecarTxSigner;
+use crate::tx_signer::TxSignerTrait;
 
 pub async fn run_kms_stress_test(kms_url: String, num_tasks: usize) {
     let signer = SidecarTxSigner::new(kms_url).await;

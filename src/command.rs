@@ -53,9 +53,9 @@ impl Command {
 
         let signer = signer_config.new_signer().await;
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
-        let sponsor_address = signer.get_address();
-        info!("Sponsor address: {:?}", sponsor_address);
-        let storage = connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await;
+        let sponsor_addresses = signer.get_all_addresses();
+        info!("Sponsor addresses: {:?}", sponsor_addresses);
+        let storage = connect_storage(&gas_pool_config, sponsor_addresses, storage_metrics).await;
         let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
         let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
             let task = GasPoolInitializer::start(
