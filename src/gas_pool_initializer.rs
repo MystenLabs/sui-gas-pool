@@ -111,6 +111,24 @@ impl CoinSplitEnv {
                 tx.digest()
             );
             let result = self.sui_client.execute_transaction(tx.clone(), 10).await;
+            let result = if let Ok(result) = result {
+                result
+                    .effects
+                    .ok_or_else(|| anyhow::anyhow!("Transaction failed"))
+            } else {
+                error!("Failed to execute transaction: {:?}", result.unwrap_err());
+                coin = self
+                    .sui_client
+                    .get_latest_gas_objects([coin.object_ref.0])
+                    .await
+                    .into_iter()
+                    .next()
+                    .unwrap()
+                    .1
+                    .unwrap();
+                continue;
+            };
+
             match result {
                 Ok(effects) => {
                     assert!(
@@ -341,7 +359,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_init_flow() {
         telemetry_subscribers::init_for_testing();
-        let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
+        let (cluster, signer, _) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing(signer.get_address()).await;
         let sui_client = SuiClient::new(&fullnode_url, None).await;
@@ -361,7 +379,7 @@ mod tests {
     #[tokio::test]
     async fn test_init_non_even_split() {
         telemetry_subscribers::init_for_testing();
-        let (cluster, signer) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
+        let (cluster, signer, _) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
         let storage = connect_storage_for_testing(signer.get_address()).await;
         let target_init_balance = 12345 * MIST_PER_SUI;
@@ -382,7 +400,7 @@ mod tests {
     #[tokio::test]
     async fn test_add_new_funds_to_pool() {
         telemetry_subscribers::init_for_testing();
-        let (cluster, signer) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
+        let (cluster, signer, _) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
         let storage = connect_storage_for_testing(signer.get_address()).await;
