@@ -3,6 +3,7 @@
 
 use crate::gas_pool::gas_pool_core::GasPool;
 use crate::metrics::GasPoolRpcMetrics;
+use crate::object_locks::get_imm_or_owned_non_gas_objects;
 use crate::read_auth_env;
 use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::rpc_types::{
@@ -41,6 +42,8 @@ const GIT_REVISION: &str = {
     }
 };
 const VERSION: &str = const_str::concat!(env!("CARGO_PKG_VERSION"), "-", GIT_REVISION);
+
+pub(crate) const MAX_INPUT_OBJECTS: usize = 50;
 
 pub struct GasPoolServer {
     pub handle: JoinHandle<()>,
@@ -264,6 +267,27 @@ async fn execute_tx_impl(
     tx_data: TransactionData,
     user_sig: GenericSignature,
 ) -> (StatusCode, Json<ExecuteTxResponse>) {
+    // check that the tx does not have too many input objects, as it will be rejected by the full
+    // node
+    let Ok(imm_or_owned_objects) = get_imm_or_owned_non_gas_objects(&tx_data) else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                "Failed to get input objects from transaction"
+            ))),
+        );
+    };
+
+    if imm_or_owned_objects.len() > MAX_INPUT_OBJECTS {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                "Transaction has too many input objects. The maximum allowed is {}",
+                MAX_INPUT_OBJECTS
+            ))),
+        );
+    }
+
     match gas_station
         .execute_transaction(reservation_id, tx_data, user_sig)
         .await
