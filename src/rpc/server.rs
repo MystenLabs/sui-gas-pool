@@ -8,8 +8,8 @@ use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
-use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
+use axum::headers::authorization::Bearer;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};

@@ -24,7 +24,5 @@ macro_rules! retry_forever {
 #[cfg(test)]
 #[macro_export]
 macro_rules! retry_forever {
-    ($func:expr) => {{
-        $func.await
-    }};
+    ($func:expr) => {{ $func.await }};
 }

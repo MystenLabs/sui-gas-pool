@@ -17,7 +17,7 @@ use sui_types::transaction::TransactionData;
 #[async_trait::async_trait]
 pub trait TxSigner: Send + Sync {
     async fn sign_transaction(&self, tx_data: &TransactionData)
-        -> anyhow::Result<GenericSignature>;
+    -> anyhow::Result<GenericSignature>;
     fn get_address(&self) -> SuiAddress;
     fn is_valid_address(&self, address: &SuiAddress) -> bool {
         self.get_address() == *address

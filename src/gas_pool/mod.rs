@@ -15,7 +15,7 @@ mod tests {
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::{
-        crypto::{get_account_key_pair, Signature},
+        crypto::{Signature, get_account_key_pair},
         gas_coin::MIST_PER_SUI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{TransactionData, TransactionKind},
@@ -45,10 +45,12 @@ mod tests {
         assert_eq!(gas_coins.len(), 7);
         assert_eq!(sponsor1, sponsor2);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
-        assert!(station
-            .reserve_gas(1, Duration::from_secs(10))
-            .await
-            .is_err());
+        assert!(
+            station
+                .reserve_gas(1, Duration::from_secs(10))
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -56,10 +58,12 @@ mod tests {
         let (test_cluster, container) =
             start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
         let station = container.get_gas_pool_arc();
-        assert!(station
-            .reserve_gas(MIST_PER_SUI + 1, Duration::from_secs(10))
-            .await
-            .is_err());
+        assert!(
+            station
+                .reserve_gas(MIST_PER_SUI + 1, Duration::from_secs(10))
+                .await
+                .is_err()
+        );
 
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
@@ -67,10 +71,12 @@ mod tests {
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
-        assert!(station
-            .reserve_gas(1, Duration::from_secs(10))
-            .await
-            .is_err());
+        assert!(
+            station
+                .reserve_gas(1, Duration::from_secs(10))
+                .await
+                .is_err()
+        );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         let effects = station
@@ -120,18 +126,22 @@ mod tests {
             .unwrap();
         assert_eq!(gas_coins.len(), 1);
         assert_eq!(station.query_pool_available_coin_count().await, 0);
-        assert!(station
-            .reserve_gas(1, Duration::from_secs(1))
-            .await
-            .is_err());
+        assert!(
+            station
+                .reserve_gas(1, Duration::from_secs(1))
+                .await
+                .is_err()
+        );
         // Sleep a little longer to give it enough time to expire.
         tokio::time::sleep(Duration::from_secs(5)).await;
         assert_eq!(station.query_pool_available_coin_count().await, 1);
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
-        assert!(station
-            .execute_transaction(reservation_id, tx_data, user_sig)
-            .await
-            .is_err());
+        assert!(
+            station
+                .execute_transaction(reservation_id, tx_data, user_sig)
+                .await
+                .is_err()
+        );
         station
             .reserve_gas(1, Duration::from_secs(1))
             .await
@@ -160,10 +170,12 @@ mod tests {
         let (tx_data, user_sig) =
             create_test_transaction(&test_cluster, sponsor, incomplete_gas_coins).await;
         // It should fail because it's inconsistent with the reservation.
-        assert!(station
-            .execute_transaction(reservation_id, tx_data, user_sig)
-            .await
-            .is_err());
+        assert!(
+            station
+                .execute_transaction(reservation_id, tx_data, user_sig)
+                .await
+                .is_err()
+        );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         let effects = station
@@ -199,10 +211,12 @@ mod tests {
         mixed_up_gas_coins[0] = gas_coins2[0];
         let (tx_data, user_sig) =
             create_test_transaction(&test_cluster, sponsor, mixed_up_gas_coins).await;
-        assert!(station
-            .execute_transaction(reservation_id1, tx_data, user_sig)
-            .await
-            .is_err());
+        assert!(
+            station
+                .execute_transaction(reservation_id1, tx_data, user_sig)
+                .await
+                .is_err()
+        );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins1).await;
         let effects = station
@@ -237,10 +251,11 @@ mod tests {
             .execute_transaction(reservation_id1, tx_data, user_sig)
             .await;
         assert!(tx.is_err());
-        assert!(tx
-            .unwrap_err()
-            .to_string()
-            .contains("Expected that the transaction signer is the same as the sender"));
+        assert!(
+            tx.unwrap_err()
+                .to_string()
+                .contains("Expected that the transaction signer is the same as the sender")
+        );
 
         let (sponsor, reservation_id2, gas_coins2) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))

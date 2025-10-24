@@ -115,13 +115,13 @@ pub async fn connect_storage_for_testing(sponsor_address: SuiAddress) -> Arc<dyn
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::{connect_storage_for_testing, Storage, MAX_GAS_PER_QUERY};
+    use crate::storage::{MAX_GAS_PER_QUERY, Storage, connect_storage_for_testing};
     use crate::types::GasCoin;
     use rand::random;
     use std::collections::BTreeSet;
     use std::sync::Arc;
     use std::time::Duration;
-    use sui_types::base_types::{random_object_ref, ObjectID, SequenceNumber, SuiAddress};
+    use sui_types::base_types::{ObjectID, SequenceNumber, SuiAddress, random_object_ref};
     use sui_types::digests::ObjectDigest;
 
     async fn assert_coin_count(storage: &Arc<dyn Storage>, available: usize, reserved: usize) {
@@ -189,10 +189,12 @@ mod tests {
     async fn test_max_gas_coin_per_query() {
         let sponsor = SuiAddress::random_for_testing_only();
         let storage = setup(sponsor, vec![1; MAX_GAS_PER_QUERY + 1]).await;
-        assert!(storage
-            .reserve_gas_coins((MAX_GAS_PER_QUERY + 1) as u64, 1000)
-            .await
-            .is_err());
+        assert!(
+            storage
+                .reserve_gas_coins((MAX_GAS_PER_QUERY + 1) as u64, 1000)
+                .await
+                .is_err()
+        );
         assert_coin_count(&storage, MAX_GAS_PER_QUERY + 1, 0).await;
     }
 

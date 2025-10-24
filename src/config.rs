@@ -7,7 +7,7 @@ use serde_with::serde_as;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 use sui_config::Config;
-use sui_types::crypto::{get_account_key_pair, SuiKeyPair};
+use sui_types::crypto::{SuiKeyPair, get_account_key_pair};
 use sui_types::gas_coin::MIST_PER_SUI;
 
 pub const DEFAULT_RPC_PORT: u16 = 9527;

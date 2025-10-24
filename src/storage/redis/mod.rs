@@ -4,8 +4,8 @@
 mod script_manager;
 
 use crate::metrics::StorageMetrics;
-use crate::storage::redis::script_manager::ScriptManager;
 use crate::storage::Storage;
+use crate::storage::redis::script_manager::ScriptManager;
 use crate::types::{GasCoin, ReservationID};
 use chrono::Utc;
 use redis::aio::ConnectionManager;
@@ -284,11 +284,11 @@ impl Storage for RedisStorage {
 
 #[cfg(test)]
 mod tests {
-    use sui_types::base_types::{random_object_ref, SuiAddress};
+    use sui_types::base_types::{SuiAddress, random_object_ref};
 
     use crate::{
         metrics::StorageMetrics,
-        storage::{redis::RedisStorage, Storage},
+        storage::{Storage, redis::RedisStorage},
         types::GasCoin,
     };
 

@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::tx_signer::{SidecarTxSigner, TxSigner};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
-use sui_types::base_types::{random_object_ref, SuiAddress};
+use sui_types::base_types::{SuiAddress, random_object_ref};
 use sui_types::transaction::{ProgrammableTransaction, TransactionData, TransactionKind};
 
 pub async fn run_kms_stress_test(kms_url: String, num_tasks: usize) {
