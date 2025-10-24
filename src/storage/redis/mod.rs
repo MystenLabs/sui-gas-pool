@@ -106,7 +106,7 @@ impl Storage for RedisStorage {
         ScriptManager::ready_for_execution_script()
             .arg(self.sponsor_str.clone())
             .arg(reservation_id)
-            .invoke_async::<_, ()>(&mut conn)
+            .invoke_async::<()>(&mut conn)
             .await?;
 
         self.metrics
@@ -207,7 +207,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         let result = ScriptManager::get_is_initialized_script()
             .arg(self.sponsor_str.clone())
-            .invoke_async::<_, bool>(&mut conn)
+            .invoke_async::<bool>(&mut conn)
             .await?;
         Ok(result)
     }
@@ -223,7 +223,7 @@ impl Storage for RedisStorage {
             .arg(self.sponsor_str.clone())
             .arg(cur_timestamp)
             .arg(lock_duration_sec)
-            .invoke_async::<_, bool>(&mut conn)
+            .invoke_async::<bool>(&mut conn)
             .await?;
         Ok(result)
     }
@@ -233,14 +233,14 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         ScriptManager::release_init_lock_script()
             .arg(self.sponsor_str.clone())
-            .invoke_async::<_, ()>(&mut conn)
+            .invoke_async::<()>(&mut conn)
             .await?;
         Ok(())
     }
 
     async fn check_health(&self) -> anyhow::Result<()> {
         let mut conn = self.conn_manager.clone();
-        redis::cmd("PING").query_async(&mut conn).await?;
+        redis::cmd("PING").query_async::<String>(&mut conn).await?;
         Ok(())
     }
 
@@ -248,7 +248,7 @@ impl Storage for RedisStorage {
     async fn flush_db(&self) {
         let mut conn = self.conn_manager.clone();
         redis::cmd("FLUSHDB")
-            .query_async::<_, String>(&mut conn)
+            .query_async::<String>(&mut conn)
             .await
             .unwrap();
     }
@@ -257,7 +257,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         let count = ScriptManager::get_available_coin_count_script()
             .arg(self.sponsor_str.clone())
-            .invoke_async::<_, usize>(&mut conn)
+            .invoke_async::<usize>(&mut conn)
             .await?;
         Ok(count)
     }
@@ -266,7 +266,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_available_coin_total_balance_script()
             .arg(self.sponsor_str.clone())
-            .invoke_async::<_, u64>(&mut conn)
+            .invoke_async::<u64>(&mut conn)
             .await
             .unwrap()
     }
@@ -276,7 +276,7 @@ impl Storage for RedisStorage {
         let mut conn = self.conn_manager.clone();
         ScriptManager::get_reserved_coin_count_script()
             .arg(self.sponsor_str.clone())
-            .invoke_async::<_, usize>(&mut conn)
+            .invoke_async::<usize>(&mut conn)
             .await
             .unwrap()
     }

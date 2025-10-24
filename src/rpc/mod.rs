@@ -9,8 +9,8 @@ pub use server::GasPoolServer;
 
 #[cfg(test)]
 mod tests {
-    use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
     use crate::AUTH_ENV_NAME;
+    use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::gas_coin::MIST_PER_SUI;
 
@@ -58,7 +58,10 @@ mod tests {
         assert_eq!(gas_coins.len(), 1);
 
         // Change the auth secret used in the client.
-        std::env::set_var(AUTH_ENV_NAME, "b");
+        unsafe {
+            std::env::set_var(AUTH_ENV_NAME, "b");
+        }
+
         assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_err());
     }
 

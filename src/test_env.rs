@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::AUTH_ENV_NAME;
 use crate::config::{CoinInitConfig, DEFAULT_DAILY_GAS_USAGE_CAP};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
@@ -9,12 +10,11 @@ use crate::rpc::GasPoolServer;
 use crate::storage::connect_storage_for_testing;
 use crate::sui_client::SuiClient;
 use crate::tx_signer::{TestTxSigner, TxSigner};
-use crate::AUTH_ENV_NAME;
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
 use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{get_account_key_pair, KeypairTraits, SuiKeyPair};
+use sui_types::crypto::{KeypairTraits, SuiKeyPair, get_account_key_pair};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{TransactionData, TransactionDataAPI};
@@ -85,7 +85,7 @@ pub async fn start_rpc_server_for_testing(
     let (test_cluster, container) =
         start_gas_station(init_gas_amounts, target_init_balance, advanced_faucet_mode).await;
     let localhost = localhost_for_testing();
-    std::env::set_var(AUTH_ENV_NAME, "some secret");
+    unsafe { std::env::set_var(AUTH_ENV_NAME, "some secret") };
     let server = GasPoolServer::new(
         container.get_gas_pool_arc(),
         localhost.parse().unwrap(),
