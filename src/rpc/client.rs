@@ -8,8 +8,8 @@ use crate::rpc::rpc_types::{
 use crate::types::ReservationID;
 use anyhow::bail;
 use fastcrypto::encoding::Base64;
-use reqwest::header::{HeaderMap, AUTHORIZATION};
 use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sui_json_rpc_types::SuiTransactionBlockEffects;
 use sui_types::base_types::{ObjectRef, SuiAddress};
 use sui_types::signature::GenericSignature;
@@ -105,9 +105,11 @@ impl GasPoolRpcClient {
         response
             .result
             .ok_or_else(|| {
-                anyhow::anyhow!(response
-                    .error
-                    .unwrap_or_else(|| "Unknown error".to_string()))
+                anyhow::anyhow!(
+                    response
+                        .error
+                        .unwrap_or_else(|| "Unknown error".to_string())
+                )
             })
             .map(|result| {
                 (
@@ -148,9 +150,11 @@ impl GasPoolRpcClient {
             .json::<ExecuteTxResponse>()
             .await?;
         response.effects.ok_or_else(|| {
-            anyhow::anyhow!(response
-                .error
-                .unwrap_or_else(|| "Unknown error".to_string()))
+            anyhow::anyhow!(
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
+            )
         })
     }
 }

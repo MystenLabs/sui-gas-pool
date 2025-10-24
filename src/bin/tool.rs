@@ -4,8 +4,8 @@
 use clap::*;
 use std::path::PathBuf;
 use sui_config::Config;
-use sui_gas_station::benchmarks::kms_stress::run_kms_stress_test;
 use sui_gas_station::benchmarks::BenchmarkMode;
+use sui_gas_station::benchmarks::kms_stress::run_kms_stress_test;
 use sui_gas_station::config::{GasPoolStorageConfig, GasStationConfig, TxSignerConfig};
 use sui_gas_station::rpc::client::GasPoolRpcClient;
 use sui_types::crypto::get_account_key_pair;

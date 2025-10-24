@@ -3,8 +3,8 @@
 
 use mysten_metrics::histogram::Histogram;
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, IntCounter, IntCounterVec, IntGaugeVec, Registry,
+    IntCounter, IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
 };
 use std::sync::Arc;
 use tracing::error;
