@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y cmake clang
 FROM chef AS builder
 WORKDIR /
 COPY Cargo.toml ./
+COPY Cargo.lock ./
 COPY src ./src
 RUN cargo build --release
 
