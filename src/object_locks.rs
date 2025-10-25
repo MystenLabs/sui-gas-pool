@@ -93,7 +93,8 @@ impl ObjectLockManager {
         tx_data: &TransactionData,
     ) -> Result<ObjectLocks, anyhow::Error> {
         debug!(?reservation_id, "Trying to acquire object locks");
-        let imm_or_owned_objects = self.get_imm_or_owned_non_gas_objects(tx_data)?;
+        let imm_or_owned_objects = get_imm_or_owned_non_gas_objects(tx_data)?;
+
         {
             // While some of the objects in imm_or_owned_objects may be immutable,
             // we could still perform a preliminary check to see if any object is already locked.
@@ -126,30 +127,6 @@ impl ObjectLockManager {
             locked_objects: owned_objects,
             global_locked_owned_objects: self.locked_owned_objects.clone(),
         })
-    }
-
-    fn get_imm_or_owned_non_gas_objects(
-        &self,
-        tx_data: &TransactionData,
-    ) -> Result<Vec<(ObjectID, u64)>, anyhow::Error> {
-        let gas_object_ids: HashSet<_> =
-            tx_data.gas_data().payment.iter().map(|obj| obj.0).collect();
-        Ok(tx_data
-            .input_objects()?
-            .into_iter()
-            .filter_map(|obj| match obj {
-                InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => {
-                    // Filter out gas objects because they are provided by the gas pool,
-                    // and they will never equivocate. So we do not need to lock them.
-                    if gas_object_ids.contains(&obj_ref.0) {
-                        None
-                    } else {
-                        Some((obj_ref.0, obj_ref.1.value()))
-                    }
-                }
-                _ => None,
-            })
-            .collect())
     }
 
     /// Given a list of object IDs that are known to be either address-owned or immutable,
@@ -237,8 +214,7 @@ impl ObjectLockManager {
         // This is obtained through effects.mutated() in the caller.
         effects_mutated_objects: Vec<(ObjectID, Owner, u64)>,
     ) {
-        let imm_or_owned_input_objects: HashSet<_> = self
-            .get_imm_or_owned_non_gas_objects(tx_data)
+        let imm_or_owned_input_objects: HashSet<_> = get_imm_or_owned_non_gas_objects(tx_data)
             // unwrap safe since we should have already checked the validity of the transaction
             // prior to execution.
             .unwrap()
@@ -252,6 +228,28 @@ impl ObjectLockManager {
             }
         }
     }
+}
+
+pub(crate) fn get_imm_or_owned_non_gas_objects(
+    tx_data: &TransactionData,
+) -> Result<Vec<(ObjectID, u64)>, anyhow::Error> {
+    let gas_object_ids: HashSet<_> = tx_data.gas_data().payment.iter().map(|obj| obj.0).collect();
+    Ok(tx_data
+        .input_objects()?
+        .into_iter()
+        .filter_map(|obj| match obj {
+            InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => {
+                // Filter out gas objects because they are provided by the gas pool,
+                // and they will never equivocate. So we do not need to lock them.
+                if gas_object_ids.contains(&obj_ref.0) {
+                    None
+                } else {
+                    Some((obj_ref.0, obj_ref.1.value()))
+                }
+            }
+            _ => None,
+        })
+        .collect())
 }
 
 #[cfg(test)]
