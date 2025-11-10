@@ -295,7 +295,7 @@ async fn execute_tx_impl(
         .execute_transaction(reservation_id, tx_data, user_sig, options)
         .await
     {
-        // It's safe to unwrap here as we've checked in `execute_transaction` that the effects exist
+        // It's safe to unwrap here as we've checked in `execute_transaction_impl` that the effects exist
         Ok(tx_block_response) => {
             info!(
                 ?reservation_id,

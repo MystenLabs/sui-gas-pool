@@ -189,12 +189,7 @@ impl GasPool {
         }
         info!(?reservation_id, "Transaction execution finished");
 
-        response.and_then(|r| {
-            let resp = r.clone();
-            r.effects
-                .ok_or_else(|| anyhow::anyhow!("Transaction execution failed: no effects returned"))
-                .and(Ok(resp))
-        })
+        response
     }
 
     async fn execute_transaction_impl(
