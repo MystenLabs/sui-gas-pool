@@ -203,18 +203,18 @@ impl SuiClient {
         &self,
         tx: Transaction,
         max_attempts: usize,
+        options: Option<SuiTransactionBlockResponseOptions>,
     ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let digest = *tx.digest();
         debug!(?digest, "Executing transaction: {:?}", tx);
+        let options = default_block_response_options(options);
         let response = retry_with_max_attempts!(
             async {
                 self.sui_client
                     .quorum_driver_api()
                     .execute_transaction_block(
                         tx.clone(),
-                        SuiTransactionBlockResponseOptions::new()
-                            .with_effects()
-                            .with_balance_changes(),
+                        options.clone(),
                         Some(ExecuteTransactionRequestType::WaitForEffectsCert),
                     )
                     .await
@@ -269,6 +269,18 @@ impl SuiClient {
             object_ref,
             balance: gas_coin.value(),
         })
+    }
+}
+
+pub fn default_block_response_options(
+    options: Option<SuiTransactionBlockResponseOptions>,
+) -> SuiTransactionBlockResponseOptions {
+    // We always want effects & balance changes
+    match options {
+        Some(opt) => opt.with_effects().with_balance_changes(),
+        None => SuiTransactionBlockResponseOptions::new()
+            .with_effects()
+            .with_balance_changes(),
     }
 }
 

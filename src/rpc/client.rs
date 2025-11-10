@@ -10,7 +10,7 @@ use anyhow::bail;
 use fastcrypto::encoding::Base64;
 use reqwest::Client;
 use reqwest::header::{AUTHORIZATION, HeaderMap};
-use sui_json_rpc_types::SuiTransactionBlockEffects;
+use sui_json_rpc_types::SuiTransactionBlockResponse;
 use sui_types::base_types::{ObjectRef, SuiAddress};
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
@@ -129,7 +129,7 @@ impl GasPoolRpcClient {
         reservation_id: ReservationID,
         tx_data: &TransactionData,
         user_sig: &GenericSignature,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
@@ -139,6 +139,7 @@ impl GasPoolRpcClient {
             reservation_id,
             tx_bytes: Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap()),
             user_sig: Base64::from_bytes(user_sig.as_ref()),
+            options: None,
         };
         let response = self
             .client
@@ -149,7 +150,7 @@ impl GasPoolRpcClient {
             .await?
             .json::<ExecuteTxResponse>()
             .await?;
-        response.effects.ok_or_else(|| {
+        response.tx_block_response.ok_or_else(|| {
             anyhow::anyhow!(
                 response
                     .error

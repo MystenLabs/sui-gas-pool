@@ -44,11 +44,11 @@ mod tests {
         assert!(client.reserve_gas(MIST_PER_SUI * 10, 10).await.is_err());
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
-        let effects = client
+        let tx_block_response = client
             .execute_tx(reservation_id, &tx_data, &user_sig)
             .await
             .unwrap();
-        assert!(effects.status().is_ok());
+        assert!(tx_block_response.effects.unwrap().status().is_ok());
     }
 
     #[tokio::test]
