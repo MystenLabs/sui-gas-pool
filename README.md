@@ -148,7 +148,21 @@ The `tool` binary currently supports a few helper commands:
 2. `generate-sample-config`: This generates a sample config file that can be used to start the gas station server.
 3. `cli`: Provides a few CLI commands to interact with the gas station server.
 
+## Tests
+
+To run the tests, make sure you have the required setup thats described in the [Deploymen Section](#deployment)
+section.
+
+After that run them with `cargo nextest run -j1`. Tests can't run in parallel due to them connecting to the same redis instance
+
 ## Deployment
+
+### Prerequisites for local development
+
+- [Rust toolchain](https://rust-lang.org/tools/install/)
+- [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/)
+
+### Running the Gas Station
 
 Below describes the steps to deploy a gas pool service:
 
@@ -158,15 +172,17 @@ Below describes the steps to deploy a gas pool service:
    this address cannot be used for any other purpose. Otherwise transactions sent outside of the gas pool could mess up
    the gas coin setup.
 2. Send a sufficiently funded SUI coin into that address. This will be the initial funding of the gas pool.
+   - If you used in-memory signer, you can get the wallet address of the keypair that was generated with the Sui cli by using the following command: `sui keytool unpack <keypair>`
 3. Deploy a Redis instance.
 4. Create a YAML config file (see details below).
+   - Edit the config's fullnode-url to match with the network you will be working with. If using localnet no need to edit it.
 5. Pick a secure secret token for the RPC server, this will be passed through the `GAS_STATION_AUTH` environment
    variable when starting the gas pool server.
-6. Deploy the gas pool server.
+6. Deploy the gas pool server: `cargo run --bin sui-gas-station -- --config-path sample.yaml`
 
 To create a YAML config file, you can use the following command to generate a sample config:
 
-`tool generate-sample-config --config-path sample.yaml --with-sidecar-signer`
+`cargo run --bin tool generate-sample-config --config-path sample.yaml --with-sidecar-signer`
 
 ```yaml
 ---
@@ -205,6 +221,6 @@ A description of these fields:
     has been added.
 - daily-gas-usage-cap: The total amount of gas usage allowed per day, as a safety cap.
 - advanced-faucet-mode: This enables the gas pool to be configured to work in a faucet mode, where the sender and the sponsor
-    are the same, and gas coins are allowed to be used in the transaction other than gas payment, i.e. the balance of the gas
-    coin can be transferred away in an arbitrary way. Do not use this unless you know what you are doing as there are risks
-    around the gas pool being depleted!
+  are the same, and gas coins are allowed to be used in the transaction other than gas payment, i.e. the balance of the gas
+  coin can be transferred away in an arbitrary way. Do not use this unless you know what you are doing as there are risks
+  around the gas pool being depleted!
