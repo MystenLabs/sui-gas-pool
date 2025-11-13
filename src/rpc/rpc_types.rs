@@ -6,7 +6,8 @@ use fastcrypto::encoding::Base64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sui_json_rpc_types::{
-    SuiObjectRef, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    SuiObjectRef, SuiTransactionBlockEffects, SuiTransactionBlockResponse,
+    SuiTransactionBlockResponseOptions,
 };
 use sui_types::base_types::{ObjectRef, SuiAddress};
 
@@ -90,20 +91,26 @@ pub struct ExecuteTxRequest {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ExecuteTxResponse {
+    pub effects: Option<SuiTransactionBlockEffects>,
     pub tx_block_response: Option<SuiTransactionBlockResponse>,
     pub error: Option<String>,
 }
 
 impl ExecuteTxResponse {
-    pub fn new_ok(tx_block_response: SuiTransactionBlockResponse) -> Self {
+    pub fn new_ok(
+        effects: Option<SuiTransactionBlockEffects>,
+        tx_block_response: Option<SuiTransactionBlockResponse>,
+    ) -> Self {
         Self {
-            tx_block_response: Some(tx_block_response),
+            effects,
+            tx_block_response,
             error: None,
         }
     }
 
     pub fn new_err(error: anyhow::Error) -> Self {
         Self {
+            effects: None,
             tx_block_response: None,
             error: Some(error.to_string()),
         }

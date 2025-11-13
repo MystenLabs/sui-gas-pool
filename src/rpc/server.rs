@@ -292,11 +292,20 @@ async fn execute_tx_impl(
     }
 
     match gas_station
-        .execute_transaction(reservation_id, tx_data, user_sig, options)
+        .execute_transaction(reservation_id, tx_data, user_sig, options.clone())
         .await
     {
-        // It's safe to unwrap here as we've checked in `execute_transaction_impl` that the effects exist
-        Ok(tx_block_response) => {
+        Ok(mut tx_block_response) => {
+            if tx_block_response.effects.is_none() {
+                error!("Failed to execute transaction: Missing transaction effects");
+                metrics.num_failed_execute_tx_requests.inc();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                        "Transaction execution failed: no effects returned"
+                    ))),
+                );
+            }
             info!(
                 ?reservation_id,
                 "Successfully executed transaction {:?} with status: {:?}",
@@ -308,10 +317,21 @@ async fn execute_tx_impl(
                 tx_block_response.effects.as_ref().unwrap().status()
             );
             metrics.num_successful_execute_tx_requests.inc();
-            (
-                StatusCode::OK,
-                Json(ExecuteTxResponse::new_ok(tx_block_response)),
-            )
+            let response = if let Some(opts) =
+                options.filter(|opts| *opts != SuiTransactionBlockResponseOptions::default())
+            {
+                if !opts.show_effects {
+                    tx_block_response.effects = None;
+                }
+                if !opts.show_balance_changes {
+                    tx_block_response.balance_changes = None;
+                }
+                ExecuteTxResponse::new_ok(None, Some(tx_block_response))
+            } else {
+                let effects = tx_block_response.effects.unwrap();
+                ExecuteTxResponse::new_ok(Some(effects), None)
+            };
+            (StatusCode::OK, Json(response))
         }
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);

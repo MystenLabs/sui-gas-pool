@@ -13,7 +13,7 @@ mod tests {
     use crate::rpc::server::MAX_INPUT_OBJECTS;
     use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
     use shared_crypto::intent::{Intent, IntentMessage};
-    use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+    use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions};
     use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
     use sui_types::crypto::get_account_key_pair;
     use sui_types::digests::ObjectDigest;
@@ -44,11 +44,64 @@ mod tests {
         assert!(client.reserve_gas(MIST_PER_SUI * 10, 10).await.is_err());
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
-        let tx_block_response = client
-            .execute_tx(reservation_id, &tx_data, &user_sig)
+        let tx_response = client
+            .execute_tx(reservation_id, &tx_data, &user_sig, None)
             .await
             .unwrap();
-        assert!(tx_block_response.effects.unwrap().status().is_ok());
+        assert!(tx_response.effects.unwrap().status().is_ok());
+        assert!(tx_response.tx_block_response.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_rpc_flow_with_options() {
+        let (test_cluster, _container, server) = start_rpc_server_for_testing(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await;
+        let client = server.get_local_client();
+
+        let (sponsor, reservation_id, gas_coins) =
+            client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
+        assert_eq!(gas_coins.len(), 1);
+
+        let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
+        let tx_response = client
+            .execute_tx(
+                reservation_id,
+                &tx_data,
+                &user_sig,
+                Some(SuiTransactionBlockResponseOptions::new().with_object_changes()),
+            )
+            .await
+            .unwrap();
+        assert!(tx_response.effects.is_none());
+        assert!(tx_response.tx_block_response.is_some());
+        assert!(
+            tx_response
+                .tx_block_response
+                .as_ref()
+                .unwrap()
+                .object_changes
+                .is_some()
+        );
+        assert!(
+            tx_response
+                .tx_block_response
+                .as_ref()
+                .unwrap()
+                .effects
+                .is_none()
+        );
+        assert!(
+            tx_response
+                .tx_block_response
+                .as_ref()
+                .unwrap()
+                .balance_changes
+                .is_none()
+        );
     }
 
     #[tokio::test]
@@ -154,7 +207,9 @@ mod tests {
         );
 
         // Execute the transaction and expect it to fail with 400 Bad Request
-        let result = client.execute_tx(reservation_id, &tx_data, &user_sig).await;
+        let result = client
+            .execute_tx(reservation_id, &tx_data, &user_sig, None)
+            .await;
 
         assert!(result.is_err());
         let error = result.unwrap_err();
