@@ -110,7 +110,10 @@ impl CoinSplitEnv {
                 "Sending transaction for execution. Tx digest: {:?}",
                 tx.digest()
             );
-            let result = self.sui_client.execute_transaction(tx.clone(), 10).await;
+            let result = self
+                .sui_client
+                .execute_transaction(tx.clone(), 10, None)
+                .await;
             let result = if let Ok(result) = result {
                 result
                     .effects
