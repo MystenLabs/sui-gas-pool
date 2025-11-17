@@ -152,14 +152,6 @@ impl GasPoolRpcClient {
             .json::<ExecuteTxResponse>()
             .await?;
 
-        if response.effects.is_none() && response.tx_block_response.is_none() {
-            Err(anyhow::anyhow!(
-                response
-                    .error
-                    .unwrap_or_else(|| "Unknown error".to_string())
-            ))
-        } else {
-            Ok(response)
-        }
+        Ok(response)
     }
 }

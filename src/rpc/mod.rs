@@ -67,6 +67,8 @@ mod tests {
         assert_eq!(gas_coins.len(), 1);
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
+
+        // Testing with object changes that is not part of the default response
         let tx_response = client
             .execute_tx(
                 reservation_id,
@@ -76,8 +78,11 @@ mod tests {
             )
             .await
             .unwrap();
+
+        // Should not observe effects as this field gets populated only when no options are passed.
         assert!(tx_response.effects.is_none());
         assert!(tx_response.tx_block_response.is_some());
+        // Should observe the requested object_changes
         assert!(
             tx_response
                 .tx_block_response
@@ -86,6 +91,7 @@ mod tests {
                 .object_changes
                 .is_some()
         );
+        // Should not observe effects as we did not request for them, even though the service utilizes them internally.
         assert!(
             tx_response
                 .tx_block_response
@@ -94,6 +100,45 @@ mod tests {
                 .effects
                 .is_none()
         );
+        // Should not observe balance_changes as we did not request for them, even though the service utilizes them internally.
+        assert!(
+            tx_response
+                .tx_block_response
+                .as_ref()
+                .unwrap()
+                .balance_changes
+                .is_none()
+        );
+
+        let (sponsor, reservation_id, gas_coins) =
+            client.reserve_gas(MIST_PER_SUI, 10).await.unwrap();
+        assert_eq!(gas_coins.len(), 1);
+
+        let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
+        // Testing with effects that is part of the required options used internally
+        let tx_response = client
+            .execute_tx(
+                reservation_id,
+                &tx_data,
+                &user_sig,
+                Some(SuiTransactionBlockResponseOptions::new().with_effects()),
+            )
+            .await
+            .unwrap();
+
+        // Should not observe effects as this field gets populated only when no options are passed.
+        assert!(tx_response.effects.is_none());
+        assert!(tx_response.tx_block_response.is_some());
+        // Should observe effects within tx_block_response as we requested for them.
+        assert!(
+            tx_response
+                .tx_block_response
+                .as_ref()
+                .unwrap()
+                .effects
+                .is_some()
+        );
+        // Should not observe balance_changes as we did not request for them, even though the service utilizes them internally.
         assert!(
             tx_response
                 .tx_block_response
@@ -211,9 +256,8 @@ mod tests {
             .execute_tx(reservation_id, &tx_data, &user_sig, None)
             .await;
 
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        let error_msg = error.to_string();
+        assert!(result.as_ref().unwrap().error.is_some());
+        let error_msg = result.unwrap().error.unwrap();
 
         // Check that the error message contains the expected text about too many input objects
         assert!(error_msg.contains("Transaction has too many input objects"));

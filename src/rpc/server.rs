@@ -296,42 +296,38 @@ async fn execute_tx_impl(
         .await
     {
         Ok(mut tx_block_response) => {
-            if tx_block_response.effects.is_none() {
+            if let Some(ref effects) = tx_block_response.effects {
+                info!(
+                    ?reservation_id,
+                    "Successfully executed transaction {:?} with status: {:?}",
+                    effects.transaction_digest(),
+                    effects.status()
+                );
+                metrics.num_successful_execute_tx_requests.inc();
+                let response = if let Some(opts) =
+                    options.filter(|opts| *opts != SuiTransactionBlockResponseOptions::default())
+                {
+                    if !opts.show_effects {
+                        tx_block_response.effects = None;
+                    }
+                    if !opts.show_balance_changes {
+                        tx_block_response.balance_changes = None;
+                    }
+                    ExecuteTxResponse::new_ok_block_response(tx_block_response)
+                } else {
+                    ExecuteTxResponse::new_ok_effects(effects.clone())
+                };
+                (StatusCode::OK, Json(response))
+            } else {
                 error!("Failed to execute transaction: Missing transaction effects");
                 metrics.num_failed_execute_tx_requests.inc();
-                return (
+                (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
                         "Transaction execution failed: no effects returned"
                     ))),
-                );
+                )
             }
-            info!(
-                ?reservation_id,
-                "Successfully executed transaction {:?} with status: {:?}",
-                tx_block_response
-                    .effects
-                    .as_ref()
-                    .unwrap()
-                    .transaction_digest(),
-                tx_block_response.effects.as_ref().unwrap().status()
-            );
-            metrics.num_successful_execute_tx_requests.inc();
-            let response = if let Some(opts) =
-                options.filter(|opts| *opts != SuiTransactionBlockResponseOptions::default())
-            {
-                if !opts.show_effects {
-                    tx_block_response.effects = None;
-                }
-                if !opts.show_balance_changes {
-                    tx_block_response.balance_changes = None;
-                }
-                ExecuteTxResponse::new_ok(None, Some(tx_block_response))
-            } else {
-                let effects = tx_block_response.effects.unwrap();
-                ExecuteTxResponse::new_ok(Some(effects), None)
-            };
-            (StatusCode::OK, Json(response))
         }
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);

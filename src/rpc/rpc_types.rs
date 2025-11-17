@@ -97,13 +97,18 @@ pub struct ExecuteTxResponse {
 }
 
 impl ExecuteTxResponse {
-    pub fn new_ok(
-        effects: Option<SuiTransactionBlockEffects>,
-        tx_block_response: Option<SuiTransactionBlockResponse>,
-    ) -> Self {
+    pub fn new_ok_effects(effects: SuiTransactionBlockEffects) -> Self {
         Self {
-            effects,
-            tx_block_response,
+            effects: Some(effects),
+            tx_block_response: None,
+            error: None,
+        }
+    }
+
+    pub fn new_ok_block_response(tx_block_response: SuiTransactionBlockResponse) -> Self {
+        Self {
+            effects: None,
+            tx_block_response: Some(tx_block_response),
             error: None,
         }
     }
