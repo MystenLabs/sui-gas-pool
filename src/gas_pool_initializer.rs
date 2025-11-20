@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions};
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use sui_types::base_types::SuiAddress;
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
@@ -112,7 +112,13 @@ impl CoinSplitEnv {
             );
             let result = self
                 .sui_client
-                .execute_transaction(tx.clone(), 10, None)
+                .execute_transaction(
+                    tx.clone(),
+                    10,
+                    SuiTransactionBlockResponseOptions::new()
+                        .with_effects()
+                        .with_balance_changes(),
+                )
                 .await;
             let result = if let Ok(result) = result {
                 result

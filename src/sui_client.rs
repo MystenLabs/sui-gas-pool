@@ -203,7 +203,7 @@ impl SuiClient {
         &self,
         tx: Transaction,
         max_attempts: usize,
-        options: Option<SuiTransactionBlockResponseOptions>,
+        options: SuiTransactionBlockResponseOptions,
     ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let digest = *tx.digest();
         debug!(?digest, "Executing transaction: {:?}", tx);
@@ -213,11 +213,7 @@ impl SuiClient {
                     .quorum_driver_api()
                     .execute_transaction_block(
                         tx.clone(),
-                        options
-                            .clone()
-                            .unwrap_or_default()
-                            .with_effects()
-                            .with_balance_changes(),
+                        options.clone(),
                         Some(ExecuteTransactionRequestType::WaitForEffectsCert),
                     )
                     .await

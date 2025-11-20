@@ -232,7 +232,17 @@ impl GasPool {
         };
         let tx = Transaction::from_generic_sig_data(tx_data.clone(), sigs);
         let cur_time = std::time::Instant::now();
-        let tx_response = self.sui_client.execute_transaction(tx, 3, options).await?;
+        let tx_response = self
+            .sui_client
+            .execute_transaction(
+                tx,
+                3,
+                options
+                    .unwrap_or_default()
+                    .with_effects()
+                    .with_balance_changes(),
+            )
+            .await?;
 
         let effects = tx_response
             .effects
