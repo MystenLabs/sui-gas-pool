@@ -33,7 +33,11 @@ if not total_balance then
         total_balance = total_balance + math.tointeger(balance)
         redis.log(redis.LOG_WARNING, "updated total_balance: " .. total_balance)
     end
-    redis.call('SET', t_available_coin_total_balance, total_balance)
+    redis.call('SET', t_available_coin_total_balance, string.format("%.0f", total_balance))
+else
+    -- Convert from string to number to handle scientific notation
+    total_balance = tonumber(total_balance)
 end
 
-return {coin_count, total_balance}
+-- Ensure we always return numbers, not strings
+return {tonumber(coin_count), total_balance}
