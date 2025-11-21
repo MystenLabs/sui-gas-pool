@@ -79,11 +79,11 @@ mod tests {
         );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
-        let effects = station
-            .execute_transaction(reservation_id, tx_data, user_sig)
+        let tx_block_response = station
+            .execute_transaction(reservation_id, tx_data, user_sig, None)
             .await
             .unwrap();
-        assert!(effects.status().is_ok());
+        assert!(tx_block_response.effects.unwrap().status().is_ok());
         assert_eq!(station.query_pool_available_coin_count().await, 1);
     }
 
@@ -107,7 +107,7 @@ mod tests {
             &keypair,
         );
         let result = station
-            .execute_transaction(reservation_id, tx_data, user_sig.into())
+            .execute_transaction(reservation_id, tx_data, user_sig.into(), None)
             .await;
         println!("{:?}", result);
         assert!(result.is_err());
@@ -138,7 +138,7 @@ mod tests {
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
         assert!(
             station
-                .execute_transaction(reservation_id, tx_data, user_sig)
+                .execute_transaction(reservation_id, tx_data, user_sig, None)
                 .await
                 .is_err()
         );
@@ -172,17 +172,17 @@ mod tests {
         // It should fail because it's inconsistent with the reservation.
         assert!(
             station
-                .execute_transaction(reservation_id, tx_data, user_sig)
+                .execute_transaction(reservation_id, tx_data, user_sig, None)
                 .await
                 .is_err()
         );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins).await;
-        let effects = station
-            .execute_transaction(reservation_id, tx_data, user_sig)
+        let tx_block_response = station
+            .execute_transaction(reservation_id, tx_data, user_sig, None)
             .await
             .unwrap();
-        assert!(effects.status().is_ok());
+        assert!(tx_block_response.effects.unwrap().status().is_ok());
     }
 
     #[ignore]
@@ -213,17 +213,17 @@ mod tests {
             create_test_transaction(&test_cluster, sponsor, mixed_up_gas_coins).await;
         assert!(
             station
-                .execute_transaction(reservation_id1, tx_data, user_sig)
+                .execute_transaction(reservation_id1, tx_data, user_sig, None)
                 .await
                 .is_err()
         );
 
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins1).await;
-        let effects = station
-            .execute_transaction(reservation_id1, tx_data, user_sig)
+        let tx_block_response = station
+            .execute_transaction(reservation_id1, tx_data, user_sig, None)
             .await
             .unwrap();
-        assert!(effects.status().is_ok());
+        assert!(tx_block_response.effects.unwrap().status().is_ok());
     }
 
     // #[ignore]
@@ -248,7 +248,7 @@ mod tests {
             .unwrap();
         let (tx_data, user_sig) = create_test_transaction(&test_cluster, sponsor, gas_coins1).await;
         let tx = station
-            .execute_transaction(reservation_id1, tx_data, user_sig)
+            .execute_transaction(reservation_id1, tx_data, user_sig, None)
             .await;
         assert!(tx.is_err());
         assert!(
@@ -269,12 +269,12 @@ mod tests {
         )
         .await;
 
-        let tx = station
-            .execute_transaction(reservation_id2, tx_data, user_sig)
+        let tx_block_response = station
+            .execute_transaction(reservation_id2, tx_data, user_sig, None)
             .await;
 
-        assert!(tx.is_ok());
-        assert!(tx.unwrap().status().is_ok());
+        assert!(tx_block_response.is_ok());
+        assert!(tx_block_response.unwrap().effects.unwrap().status().is_ok());
 
         let (sponsor, reservation_id3, gas_coins3) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -287,11 +287,11 @@ mod tests {
             gas_coins3,
         )
         .await;
-        let tx = station
-            .execute_transaction(reservation_id3, tx_data, user_sig)
+        let tx_block_response = station
+            .execute_transaction(reservation_id3, tx_data, user_sig, None)
             .await;
 
-        assert!(tx.is_ok());
-        assert!(tx.unwrap().status().is_ok());
+        assert!(tx_block_response.is_ok());
+        assert!(tx_block_response.unwrap().effects.unwrap().status().is_ok());
     }
 }

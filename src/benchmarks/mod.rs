@@ -87,7 +87,9 @@ impl BenchmarkMode {
                     );
                     let intent_msg = IntentMessage::new(Intent::sui_transaction(), &tx_data);
                     let user_sig = Signature::new_secure(&intent_msg, &keypair).into();
-                    let result = client.execute_tx(reservation_id, &tx_data, &user_sig).await;
+                    let result = client
+                        .execute_tx(reservation_id, &tx_data, &user_sig, None)
+                        .await;
                     if let Err(err) = result {
                         stats.write().update_error();
                         println!("Error: {}", err);

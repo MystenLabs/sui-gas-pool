@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::{
     BalanceChange, SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse,
+    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
 };
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::gas_coin::MIST_PER_SUI;
@@ -98,7 +98,8 @@ impl GasPool {
         reservation_id: ReservationID,
         tx_data: TransactionData,
         user_sig: GenericSignature,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+        options: Option<SuiTransactionBlockResponseOptions>,
+    ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let sponsor = tx_data.gas_data().owner;
         if !self.signer.is_valid_address(&sponsor) {
             bail!("Sponsor {:?} is not registered", sponsor);
@@ -131,7 +132,7 @@ impl GasPool {
         );
 
         let response = self
-            .execute_transaction_impl(reservation_id, tx_data, user_sig)
+            .execute_transaction_impl(reservation_id, tx_data, user_sig, options)
             .await;
         let updated_coins = match &response {
             Ok(tx_response) => {
@@ -188,10 +189,7 @@ impl GasPool {
         }
         info!(?reservation_id, "Transaction execution finished");
 
-        response.and_then(|r| {
-            r.effects
-                .ok_or_else(|| anyhow::anyhow!("Transaction execution failed: no effects returned"))
-        })
+        response
     }
 
     async fn execute_transaction_impl(
@@ -199,6 +197,7 @@ impl GasPool {
         reservation_id: ReservationID,
         tx_data: TransactionData,
         user_sig: GenericSignature,
+        options: Option<SuiTransactionBlockResponseOptions>,
     ) -> anyhow::Result<SuiTransactionBlockResponse> {
         let _object_locks = self
             .object_lock_manager
@@ -233,7 +232,17 @@ impl GasPool {
         };
         let tx = Transaction::from_generic_sig_data(tx_data.clone(), sigs);
         let cur_time = std::time::Instant::now();
-        let tx_response = self.sui_client.execute_transaction(tx, 3).await?;
+        let tx_response = self
+            .sui_client
+            .execute_transaction(
+                tx,
+                3,
+                options
+                    .unwrap_or_default()
+                    .with_effects()
+                    .with_balance_changes(),
+            )
+            .await?;
 
         let effects = tx_response
             .effects

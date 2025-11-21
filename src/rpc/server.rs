@@ -19,7 +19,7 @@ use fastcrypto::encoding::Base64;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
+use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions};
 use sui_types::crypto::ToFromBytes;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::TransactionData;
@@ -231,6 +231,7 @@ async fn execute_tx(
         reservation_id,
         tx_bytes,
         user_sig,
+        options,
     } = payload;
     let Ok((tx_data, user_sig)) = convert_tx_and_sig(tx_bytes, user_sig) else {
         return (
@@ -247,6 +248,7 @@ async fn execute_tx(
         reservation_id,
         tx_data,
         user_sig,
+        options,
     ))
     .await
     .unwrap_or_else(|err| {
@@ -266,6 +268,7 @@ async fn execute_tx_impl(
     reservation_id: u64,
     tx_data: TransactionData,
     user_sig: GenericSignature,
+    options: Option<SuiTransactionBlockResponseOptions>,
 ) -> (StatusCode, Json<ExecuteTxResponse>) {
     // check that the tx does not have too many input objects, as it will be rejected by the full
     // node
@@ -289,10 +292,21 @@ async fn execute_tx_impl(
     }
 
     match gas_station
-        .execute_transaction(reservation_id, tx_data, user_sig)
+        .execute_transaction(reservation_id, tx_data, user_sig, options.clone())
         .await
     {
-        Ok(effects) => {
+        Ok(mut tx_block_response) => {
+            let Some(ref effects) = tx_block_response.effects else {
+                error!("Failed to execute transaction: Missing transaction effects");
+                metrics.num_failed_execute_tx_requests.inc();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
+                        "Failed to execute transaction: Missing transaction effects"
+                    ))),
+                );
+            };
+
             info!(
                 ?reservation_id,
                 "Successfully executed transaction {:?} with status: {:?}",
@@ -300,7 +314,18 @@ async fn execute_tx_impl(
                 effects.status()
             );
             metrics.num_successful_execute_tx_requests.inc();
-            (StatusCode::OK, Json(ExecuteTxResponse::new_ok(effects)))
+            let response = if let Some(opts) = options {
+                if !opts.show_effects {
+                    tx_block_response.effects = None;
+                }
+                if !opts.show_balance_changes {
+                    tx_block_response.balance_changes = None;
+                }
+                ExecuteTxResponse::new_ok_block_response(tx_block_response)
+            } else {
+                ExecuteTxResponse::new_ok_effects(effects.clone())
+            };
+            (StatusCode::OK, Json(response))
         }
         Err(err) => {
             error!("Failed to execute transaction: {:?}", err);
