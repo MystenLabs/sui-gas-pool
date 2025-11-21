@@ -94,14 +94,35 @@ pub struct ExecuteTxRequest {
     pub tx_bytes: Base64,
     /// User signature (`flag || signature || pubkey` bytes, as base-64 encoded string). Signature is committed to the intent message of the transaction data, as base-64 encoded string.
     pub user_sig: Base64,
+    /// Defines the fields the block response returns with.
+    pub options: Option<SuiTransactionBlockResponseOptions>,
 }
 
 pub struct ExecuteTxResponse {
+    /// If no options were passed in the `ExecuteTxRequest` this field is populated in the response.
     pub effects: Option<SuiTransactionBlockEffects>,
+    /// If options were passed in the `ExecuteTxRequest`, even if empty, this field is populated in the response.
+    pub tx_block_response: Option<SuiTransactionBlockResponse>,
     pub error: Option<String>,
 }
 
 ```
+
+#### Options schema:
+
+```TS
+options = {
+   showBalanceChanges?: boolean,
+   showObjectChanges?: boolean,
+   showEffects?: boolean,
+   showRawEffects?: boolean,
+   showInput?: boolean,
+   showRawInput?: boolean,
+   showEvents?: boolean,
+}
+```
+
+Notice that they should be typed in camelCase and not in snake_case in JSON format.
 
 ### Gas Pool Initializer
 
