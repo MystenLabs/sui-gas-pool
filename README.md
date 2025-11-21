@@ -39,7 +39,7 @@ components:
 The storage layer stores all the gas coins in the pool and reservation information. It is the only place where we
 persist data.
 It uses Redis store as the backend, and Lua scripts to control the logic.
-Detailed documentation of each Lua script can be found
+Detailed documentation of Lua scripts can be found
 in each script file [here](https://github.com/MystenLabs/sui-gas-pool/tree/main/src/storage/redis/lua_scripts).
 
 ## Gas Pool Server
