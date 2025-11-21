@@ -40,7 +40,7 @@ The storage layer stores all the gas coins in the pool and reservation informati
 persist data.
 It uses Redis store as the backend, and Lua scripts to control the logic.
 Detailed documentation of Lua scripts can be found
-in each script file [here](https://github.com/MystenLabs/sui-gas-pool/tree/main/src/storage/redis/lua_scripts).
+in each script file [here](/src/storage/redis/lua_scripts).
 
 ## Gas Pool Server
 
@@ -61,12 +61,12 @@ is also why an internal server is needed such that the barer token is not expose
 An HTTP server is implemented to take the following 3 requests:
 
 - GET("/"): Checks the health of the server
-- POST("/v1/reserve_gas"): Takes a [`ReserveGasRequest`](https://github.com/MystenLabs/sui-gas-pool/blob/main/src/rpc/rpc_types.rs)
+- POST("/v1/reserve_gas"): Takes a [`ReserveGasRequest`](/src/rpc/rpc_types.rs)
   parameter in JSON form, and
-  returns [`ReserveGasResponse`](https://github.com/MystenLabs/sui-gas-pool/blob/main/src/rpc/rpc_types.rs).
-- POST("/v1/execute_tx"): Takes a [`ExecuteTxRequest`](https://github.com/MystenLabs/sui-gas-pool/blob/main/src/rpc/rpc_types.rs) parameter
+  returns [`ReserveGasResponse`](/src/rpc/rpc_types.rs).
+- POST("/v1/execute_tx"): Takes a [`ExecuteTxRequest`](/src/rpc/rpc_types.rs) parameter
   in JSON form, and
-  returns [`ExecuteTxResponse`](https://github.com/MystenLabs/sui-gas-pool/blob/main/src/rpc/rpc_types.rs).
+  returns [`ExecuteTxResponse`](/src/rpc/rpc_types.rs).
 
 ```rust
 pub struct ReserveGasRequest {
