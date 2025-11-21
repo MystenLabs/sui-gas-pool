@@ -302,7 +302,7 @@ async fn execute_tx_impl(
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
-                        "Transaction execution failed: no effects returned"
+                        "Failed to execute transaction: Missing transaction effects"
                     ))),
                 );
             };
