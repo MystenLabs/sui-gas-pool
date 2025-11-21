@@ -39,8 +39,8 @@ components:
 The storage layer stores all the gas coins in the pool and reservation information. It is the only place where we
 persist data.
 It uses Redis store as the backend, and Lua scripts to control the logic.
-Detailed documentation of each Lua script can be found
-in [link](https://www.notion.so/mystenlabs/src/storage/redis/lua_scripts/).
+Detailed documentation of Lua scripts can be found
+in each script file [here](/src/storage/redis/lua_scripts).
 
 ## Gas Pool Server
 
@@ -61,12 +61,12 @@ is also why an internal server is needed such that the barer token is not expose
 An HTTP server is implemented to take the following 3 requests:
 
 - GET("/"): Checks the health of the server
-- POST("/v1/reserve_gas"): Takes a [`ReserveGasRequest`](https://www.notion.so/mystenlabs/src/rpc/rpc_types.rs)
+- POST("/v1/reserve_gas"): Takes a [`ReserveGasRequest`](/src/rpc/rpc_types.rs)
   parameter in JSON form, and
-  returns [`ReserveGasResponse`](https://www.notion.so/mystenlabs/src/rpc/rpc_types.rs).
-- POST("/v1/execute_tx"): Takes a [`ExecuteTxRequest`](https://www.notion.so/mystenlabs/src/rpc/rpc_types.rs) parameter
+  returns [`ReserveGasResponse`](/src/rpc/rpc_types.rs).
+- POST("/v1/execute_tx"): Takes a [`ExecuteTxRequest`](/src/rpc/rpc_types.rs) parameter
   in JSON form, and
-  returns [`ExecuteTxResponse`](https://www.notion.so/mystenlabs/src/rpc/rpc_types.rs).
+  returns [`ExecuteTxResponse`](/src/rpc/rpc_types.rs).
 
 ```rust
 pub struct ReserveGasRequest {
