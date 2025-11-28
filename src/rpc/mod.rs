@@ -32,7 +32,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
         let client = server.get_local_client();
         client.health().await.unwrap();
 
@@ -59,7 +60,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
         let client = server.get_local_client();
 
         let (sponsor, reservation_id, gas_coins) =
@@ -156,7 +158,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
 
         let client = server.get_local_client();
         client.health().await.unwrap();
@@ -179,7 +182,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
 
         let client = server.get_local_client();
         client.debug_health_check().await.unwrap();
@@ -236,7 +240,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
 
         let client = server.get_local_client();
 

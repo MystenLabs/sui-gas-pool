@@ -7,6 +7,7 @@ use crate::metrics::StorageMetrics;
 use crate::storage::Storage;
 use crate::storage::redis::script_manager::ScriptManager;
 use crate::types::{GasCoin, ReservationID};
+use anyhow::anyhow;
 use chrono::Utc;
 use redis::aio::ConnectionManager;
 use std::ops::Add;
@@ -28,13 +29,20 @@ impl RedisStorage {
         redis_url: &str,
         sponsor_address: SuiAddress,
         metrics: Arc<StorageMetrics>,
-    ) -> Self {
-        let client = redis::Client::open(redis_url).unwrap();
-        let conn_manager = ConnectionManager::new(client).await.unwrap();
-        Self {
-            conn_manager,
-            sponsor_str: sponsor_address.to_string(),
-            metrics,
+    ) -> anyhow::Result<Self> {
+        let client = redis::Client::open(redis_url)?;
+        let connection = client.get_connection_with_timeout(Duration::new(3, 0));
+
+        match connection {
+            Ok(_) => {
+                let conn_manager = ConnectionManager::new(client).await?;
+                Ok(Self {
+                    conn_manager,
+                    sponsor_str: sponsor_address.to_string(),
+                    metrics,
+                })
+            }
+            Err(error) => Err(anyhow!(error)),
         }
     }
 }
@@ -294,7 +302,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_coin_stats_at_startup() {
-        let storage = setup_storage().await;
+        let storage = setup_storage().await.unwrap();
         storage
             .add_new_coins(vec![
                 GasCoin {
@@ -315,7 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_new_coins() {
-        let storage = setup_storage().await;
+        let storage = setup_storage().await.unwrap();
         storage
             .add_new_coins(vec![
                 GasCoin {
@@ -352,17 +360,17 @@ mod tests {
         assert_eq!(total_balance, 1000);
     }
 
-    async fn setup_storage() -> RedisStorage {
+    async fn setup_storage() -> anyhow::Result<RedisStorage> {
         let storage = RedisStorage::new(
             "redis://127.0.0.1:6379",
             SuiAddress::ZERO,
             StorageMetrics::new_for_testing(),
         )
-        .await;
+        .await?;
         storage.flush_db().await;
         let (coin_count, total_balance) = storage.init_coin_stats_at_startup().await.unwrap();
         assert_eq!(coin_count, 0);
         assert_eq!(total_balance, 0);
-        storage
+        Ok(storage)
     }
 }

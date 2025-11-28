@@ -74,10 +74,10 @@ pub async fn connect_storage(
     config: &GasPoolStorageConfig,
     sponsor_address: SuiAddress,
     metrics: Arc<StorageMetrics>,
-) -> Arc<dyn Storage> {
+) -> anyhow::Result<Arc<dyn Storage>> {
     let storage: Arc<dyn Storage> = match config {
         GasPoolStorageConfig::Redis { redis_url } => {
-            Arc::new(RedisStorage::new(redis_url, sponsor_address, metrics).await)
+            Arc::new(RedisStorage::new(redis_url, sponsor_address, metrics).await?)
         }
     };
     storage
@@ -85,31 +85,34 @@ pub async fn connect_storage(
         .await
         .expect("Unable to connect to the storage layer");
     storage.init_coin_stats_at_startup().await.unwrap();
-    storage
+    Ok(storage)
 }
 
 #[cfg(test)]
 pub async fn connect_storage_for_testing_with_config(
     config: &GasPoolStorageConfig,
     sponsor_address: SuiAddress,
-) -> Arc<dyn Storage> {
+) -> anyhow::Result<Arc<dyn Storage>> {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     static IS_FIRST_CALL: AtomicBool = AtomicBool::new(true);
     let is_first_call = IS_FIRST_CALL.fetch_and(false, Ordering::SeqCst);
 
-    let storage = connect_storage(config, sponsor_address, StorageMetrics::new_for_testing()).await;
+    let storage =
+        connect_storage(config, sponsor_address, StorageMetrics::new_for_testing()).await?;
     if is_first_call {
         // Make sure that we only flush the DB once at the beginning of each test run.
         storage.flush_db().await;
         // Re-init coin stats again since we just flushed.
         storage.init_coin_stats_at_startup().await.unwrap();
     }
-    storage
+    Ok(storage)
 }
 
 #[cfg(test)]
-pub async fn connect_storage_for_testing(sponsor_address: SuiAddress) -> Arc<dyn Storage> {
+pub async fn connect_storage_for_testing(
+    sponsor_address: SuiAddress,
+) -> anyhow::Result<Arc<dyn Storage>> {
     connect_storage_for_testing_with_config(&GasPoolStorageConfig::default(), sponsor_address).await
 }
 
@@ -129,8 +132,11 @@ mod tests {
         assert_eq!(storage.get_reserved_coin_count().await, reserved);
     }
 
-    async fn setup(sponsor: SuiAddress, init_balances: Vec<u64>) -> Arc<dyn Storage> {
-        let storage = connect_storage_for_testing(sponsor).await;
+    async fn setup(
+        sponsor: SuiAddress,
+        init_balances: Vec<u64>,
+    ) -> anyhow::Result<Arc<dyn Storage>> {
+        let storage = connect_storage_for_testing(sponsor).await?;
         let gas_coins = init_balances
             .into_iter()
             .map(|balance| GasCoin {
@@ -145,13 +151,13 @@ mod tests {
         for chunk in gas_coins.chunks(5000) {
             storage.add_new_coins(chunk.to_vec()).await.unwrap();
         }
-        storage
+        Ok(storage)
     }
 
     #[tokio::test]
     async fn test_gas_pool_init() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = connect_storage_for_testing(sponsor).await;
+        let storage = connect_storage_for_testing(sponsor).await.unwrap();
         assert!(!storage.is_initialized().await.unwrap());
         storage.add_new_coins(vec![]).await.unwrap();
         // Still not initialized because we are not adding any coins.
@@ -170,7 +176,7 @@ mod tests {
     async fn test_successful_reservation() {
         // Create a gas pool of 100000 coins, each with balance of 1.
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100000]).await;
+        let storage = setup(sponsor, vec![1; 100000]).await.unwrap();
         assert_coin_count(&storage, 100000, 0).await;
         let mut cur_available = 100000;
         let mut expected_res_id = 1;
@@ -188,7 +194,9 @@ mod tests {
     #[tokio::test]
     async fn test_max_gas_coin_per_query() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; MAX_GAS_PER_QUERY + 1]).await;
+        let storage = setup(sponsor, vec![1; MAX_GAS_PER_QUERY + 1])
+            .await
+            .unwrap();
         assert!(
             storage
                 .reserve_gas_coins((MAX_GAS_PER_QUERY + 1) as u64, 1000)
@@ -201,7 +209,7 @@ mod tests {
     #[tokio::test]
     async fn test_insufficient_pool_budget() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         assert!(storage.reserve_gas_coins(101, 1000).await.is_err());
         assert_coin_count(&storage, 100, 0).await;
     }
@@ -209,7 +217,7 @@ mod tests {
     #[tokio::test]
     async fn test_coin_release() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         for _ in 0..100 {
             // Keep reserving and putting them back.
             // Should be able to repeat this process indefinitely if balance are not changed.
@@ -225,7 +233,7 @@ mod tests {
     #[tokio::test]
     async fn test_coin_release_with_updated_balance() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         for _ in 0..10 {
             let (res_id, mut reserved_gas_coins) =
                 storage.reserve_gas_coins(10, 1000).await.unwrap();
@@ -249,7 +257,7 @@ mod tests {
     #[tokio::test]
     async fn test_deleted_objects() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         let (res_id, mut reserved_gas_coins) = storage.reserve_gas_coins(100, 1000).await.unwrap();
         assert_eq!(reserved_gas_coins.len(), 100);
 
@@ -263,7 +271,7 @@ mod tests {
     #[tokio::test]
     async fn test_coin_expiration() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         let (_res_id1, reserved_gas_coins1) = storage.reserve_gas_coins(10, 900).await.unwrap();
         assert_eq!(reserved_gas_coins1.len(), 10);
         let (_res_id2, reserved_gas_coins2) = storage.reserve_gas_coins(30, 1900).await.unwrap();
@@ -312,7 +320,7 @@ mod tests {
             .collect::<Vec<_>>();
         let mut storages = vec![];
         for sponsor in sponsors {
-            storages.push(setup(sponsor, vec![1; 100]).await);
+            storages.push(setup(sponsor, vec![1; 100]).await.unwrap());
         }
         for storage in storages {
             let (_, gas_coins) = storage.reserve_gas_coins(50, 1000).await.unwrap();
@@ -324,7 +332,7 @@ mod tests {
     #[tokio::test]
     async fn test_concurrent_reservation() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100000]).await;
+        let storage = setup(sponsor, vec![1; 100000]).await.unwrap();
         let mut handles = vec![];
         for _ in 0..10 {
             let storage = storage.clone();
@@ -352,7 +360,7 @@ mod tests {
     #[tokio::test]
     async fn test_acquire_init_lock() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         assert!(storage.acquire_init_lock(5).await.unwrap());
         assert!(!storage.acquire_init_lock(1).await.unwrap());
         tokio::time::sleep(Duration::from_secs(6)).await;
@@ -362,7 +370,7 @@ mod tests {
     #[tokio::test]
     async fn test_init_coin_stats_idempotent() {
         let sponsor = SuiAddress::random_for_testing_only();
-        let storage = setup(sponsor, vec![1; 100]).await;
+        let storage = setup(sponsor, vec![1; 100]).await.unwrap();
         // init_coin_stats_at_startup has already been called in setup.
         // Calling it again should not change anything.
         let (coin_count, total_balance) = storage.init_coin_stats_at_startup().await.unwrap();

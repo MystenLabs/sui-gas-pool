@@ -30,7 +30,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor1, _res_id1, gas_coins) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -56,7 +57,9 @@ mod tests {
     #[tokio::test]
     async fn test_e2e_gas_station_flow() {
         let (test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
+                .await
+                .unwrap();
         let station = container.get_gas_pool_arc();
         assert!(
             station
@@ -91,7 +94,9 @@ mod tests {
     async fn test_invalid_transaction() {
         telemetry_subscribers::init_for_testing();
         let (_test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
+                .await
+                .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
@@ -118,7 +123,9 @@ mod tests {
     async fn test_coin_expiration() {
         telemetry_subscribers::init_for_testing();
         let (test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE).await;
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
+                .await
+                .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI, Duration::from_secs(1))
@@ -156,7 +163,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id, gas_coins) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -193,7 +201,8 @@ mod tests {
             MIST_PER_SUI,
             TEST_ADVANCED_FAUCET_MODE,
         )
-        .await;
+        .await
+        .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id1, gas_coins1) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
@@ -240,7 +249,8 @@ mod tests {
             MIST_PER_SUI,
             true, /* advanced_faucet_mode */
         )
-        .await;
+        .await
+        .unwrap();
         let station = container.get_gas_pool_arc();
         let (sponsor, reservation_id1, gas_coins1) = station
             .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
