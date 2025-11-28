@@ -301,8 +301,34 @@ mod tests {
     };
 
     #[tokio::test]
+    async fn test_malformed_redis_url() {
+        let storage = setup_storage(Some("redi://127.0.0.1:6379")).await;
+        assert!(storage.is_err());
+        assert!(
+            storage
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("Redis URL did not parse")
+        )
+    }
+
+    #[tokio::test]
+    async fn test_connection_timeout() {
+        let storage = setup_storage(Some("redis://127.0.0.1:6400")).await;
+        assert!(storage.is_err());
+        assert!(
+            storage
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("Connection refused")
+        )
+    }
+
+    #[tokio::test]
     async fn test_init_coin_stats_at_startup() {
-        let storage = setup_storage().await.unwrap();
+        let storage = setup_storage(None).await.unwrap();
         storage
             .add_new_coins(vec![
                 GasCoin {
@@ -323,7 +349,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_add_new_coins() {
-        let storage = setup_storage().await.unwrap();
+        let storage = setup_storage(None).await.unwrap();
         storage
             .add_new_coins(vec![
                 GasCoin {
@@ -360,9 +386,9 @@ mod tests {
         assert_eq!(total_balance, 1000);
     }
 
-    async fn setup_storage() -> anyhow::Result<RedisStorage> {
+    async fn setup_storage(redis_url: Option<&str>) -> anyhow::Result<RedisStorage> {
         let storage = RedisStorage::new(
-            "redis://127.0.0.1:6379",
+            redis_url.unwrap_or_else(|| "redis://127.0.0.1:6379"),
             SuiAddress::ZERO,
             StorageMetrics::new_for_testing(),
         )
