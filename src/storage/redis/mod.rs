@@ -7,7 +7,6 @@ use crate::metrics::StorageMetrics;
 use crate::storage::Storage;
 use crate::storage::redis::script_manager::ScriptManager;
 use crate::types::{GasCoin, ReservationID};
-use anyhow::anyhow;
 use chrono::Utc;
 use redis::aio::ConnectionManager;
 use std::ops::Add;
@@ -31,19 +30,14 @@ impl RedisStorage {
         metrics: Arc<StorageMetrics>,
     ) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
-        let connection = client.get_connection_with_timeout(Duration::new(3, 0));
+        client.get_connection_with_timeout(Duration::new(3, 0))?;
 
-        match connection {
-            Ok(_) => {
-                let conn_manager = ConnectionManager::new(client).await?;
-                Ok(Self {
-                    conn_manager,
-                    sponsor_str: sponsor_address.to_string(),
-                    metrics,
-                })
-            }
-            Err(error) => Err(anyhow!(error)),
-        }
+        let conn_manager = ConnectionManager::new(client).await?;
+        Ok(Self {
+            conn_manager,
+            sponsor_str: sponsor_address.to_string(),
+            metrics,
+        })
     }
 }
 
