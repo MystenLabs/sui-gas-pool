@@ -30,7 +30,16 @@ impl RedisStorage {
         metrics: Arc<StorageMetrics>,
     ) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
-        client.get_connection_with_timeout(Duration::new(3, 0))?;
+
+        // Test connection first (this will fail fast if URL is invalid)
+        let duration = Duration::from_secs(3);
+        let mut async_conn = client
+            .get_multiplexed_async_std_connection_with_timeouts(duration.clone(), duration)
+            .await?;
+
+        redis::cmd("PING")
+            .query_async::<String>(&mut async_conn)
+            .await?;
 
         let conn_manager = ConnectionManager::new(client).await?;
         Ok(Self {

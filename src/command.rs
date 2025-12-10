@@ -96,6 +96,7 @@ impl Command {
             }
             Err(error) => {
                 error!("Connecting to storage failed with: {:?}", error);
+                std::process::exit(1);
             }
         }
     }
