@@ -46,6 +46,8 @@ rand = "0.8.5"
 redis = { version = "0.32.7", features = [
     "default",
     "async-std-comp",
+    "tls-native-tls",
+    "async-std-native-tls-comp",
     "connection-manager",
 ] }
 reqwest = { version = "0.12.24", features = ["json"] }
