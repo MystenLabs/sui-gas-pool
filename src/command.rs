@@ -57,47 +57,48 @@ impl Command {
         let sponsor_address = signer.get_address();
         info!("Sponsor address: {:?}", sponsor_address);
 
-        match connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await {
-            Ok(storage) => {
-                let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
-                let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
-                    let task = GasPoolInitializer::start(
-                        sui_client.clone(),
-                        storage.clone(),
-                        coin_init_config,
-                        signer.clone(),
-                    )
-                    .await;
-                    Some(task)
-                } else {
-                    None
-                };
+        let storage =
+            match connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await {
+                Ok(storage) => storage,
+                Err(e) => {
+                    error!("Connecting to storage failed with: {e:?}");
+                    std::process::exit(1);
+                }
+            };
 
-                let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
-                let container = GasPoolContainer::new(
-                    signer,
-                    storage,
-                    sui_client,
-                    daily_gas_usage_cap,
-                    core_metrics,
-                    advanced_faucet_mode,
-                )
-                .await;
+        let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
+        let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
+            let task = GasPoolInitializer::start(
+                sui_client.clone(),
+                storage.clone(),
+                coin_init_config,
+                signer.clone(),
+            )
+            .await;
+            Some(task)
+        } else {
+            None
+        };
 
-                let rpc_metrics = GasPoolRpcMetrics::new(&prometheus_registry);
-                let server = GasPoolServer::new(
-                    container.get_gas_pool_arc(),
-                    rpc_host_ip,
-                    rpc_port,
-                    rpc_metrics,
-                )
-                .await;
-                server.handle.await.unwrap();
-            }
-            Err(error) => {
-                error!("Connecting to storage failed with: {:?}", error);
-                std::process::exit(1);
-            }
-        }
+        let core_metrics = GasPoolCoreMetrics::new(&prometheus_registry);
+        let container = GasPoolContainer::new(
+            signer,
+            storage,
+            sui_client,
+            daily_gas_usage_cap,
+            core_metrics,
+            advanced_faucet_mode,
+        )
+        .await;
+
+        let rpc_metrics = GasPoolRpcMetrics::new(&prometheus_registry);
+        let server = GasPoolServer::new(
+            container.get_gas_pool_arc(),
+            rpc_host_ip,
+            rpc_port,
+            rpc_metrics,
+        )
+        .await;
+        server.handle.await.unwrap();
     }
 }
