@@ -5,6 +5,7 @@ use crate::config::GasPoolStorageConfig;
 use crate::metrics::StorageMetrics;
 use crate::storage::redis::RedisStorage;
 use crate::types::{GasCoin, ReservationID};
+use anyhow::{Context, Result, anyhow};
 use std::sync::Arc;
 use sui_types::base_types::{ObjectID, SuiAddress};
 
@@ -28,13 +29,13 @@ pub trait Storage: Sync + Send {
         &self,
         target_budget: u64,
         reserved_duration_ms: u64,
-    ) -> anyhow::Result<(ReservationID, Vec<GasCoin>)>;
+    ) -> Result<(ReservationID, Vec<GasCoin>)>;
 
-    async fn ready_for_execution(&self, reservation_id: ReservationID) -> anyhow::Result<()>;
+    async fn ready_for_execution(&self, reservation_id: ReservationID) -> Result<()>;
 
-    async fn add_new_coins(&self, new_coins: Vec<GasCoin>) -> anyhow::Result<()>;
+    async fn add_new_coins(&self, new_coins: Vec<GasCoin>) -> Result<()>;
 
-    async fn expire_coins(&self) -> anyhow::Result<Vec<ObjectID>>;
+    async fn expire_coins(&self) -> Result<Vec<ObjectID>>;
 
     /// Initialize some of the gas pool statistics at the startup.
     /// Such as the total number of gas coins and the total balance.
@@ -43,26 +44,26 @@ pub trait Storage: Sync + Send {
     ///    We only need this once ever though.
     /// 2. To make sure we start reporting the correct metrics from the beginning.
     /// Returns the total number of gas coins and the total balance.
-    async fn init_coin_stats_at_startup(&self) -> anyhow::Result<(u64, u64)>;
+    async fn init_coin_stats_at_startup(&self) -> Result<(u64, u64)>;
 
     /// Whether the gas pool for the given sponsor address is initialized.
-    async fn is_initialized(&self) -> anyhow::Result<bool>;
+    async fn is_initialized(&self) -> Result<bool>;
 
     /// Acquire a lock to initialize the gas pool for the given sponsor address for a certain duration.
     /// Returns true if the lock is acquired, false otherwise.
     /// Once the lock is acquired, until it expires, no other caller can acquire the lock.
     /// The reason we use a lock duration is such that in case the server crashed while holding the lock,
     /// the lock will be automatically considered as released after the lock duration.
-    async fn acquire_init_lock(&self, lock_duration_sec: u64) -> anyhow::Result<bool>;
+    async fn acquire_init_lock(&self, lock_duration_sec: u64) -> Result<bool>;
 
-    async fn release_init_lock(&self) -> anyhow::Result<()>;
+    async fn release_init_lock(&self) -> Result<()>;
 
-    async fn check_health(&self) -> anyhow::Result<()>;
+    async fn check_health(&self) -> Result<()>;
 
     #[cfg(test)]
     async fn flush_db(&self);
 
-    async fn get_available_coin_count(&self) -> anyhow::Result<usize>;
+    async fn get_available_coin_count(&self) -> Result<usize>;
 
     async fn get_available_coin_total_balance(&self) -> u64;
 
@@ -74,7 +75,7 @@ pub async fn connect_storage(
     config: &GasPoolStorageConfig,
     sponsor_address: SuiAddress,
     metrics: Arc<StorageMetrics>,
-) -> anyhow::Result<Arc<dyn Storage>> {
+) -> Result<Arc<dyn Storage>> {
     let storage: Arc<dyn Storage> = match config {
         GasPoolStorageConfig::Redis { redis_url } => {
             Arc::new(RedisStorage::new(redis_url, sponsor_address, metrics).await?)
@@ -83,7 +84,7 @@ pub async fn connect_storage(
     storage
         .check_health()
         .await
-        .map_err(|e| anyhow::anyhow!("Unable to connect to the storage layer: {:?}", e))?;
+        .context(anyhow!("Unable to connect to the storage layer"))?;
     storage.init_coin_stats_at_startup().await.unwrap();
     Ok(storage)
 }
@@ -92,7 +93,7 @@ pub async fn connect_storage(
 pub async fn connect_storage_for_testing_with_config(
     config: &GasPoolStorageConfig,
     sponsor_address: SuiAddress,
-) -> anyhow::Result<Arc<dyn Storage>> {
+) -> Result<Arc<dyn Storage>> {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     static IS_FIRST_CALL: AtomicBool = AtomicBool::new(true);
@@ -110,9 +111,7 @@ pub async fn connect_storage_for_testing_with_config(
 }
 
 #[cfg(test)]
-pub async fn connect_storage_for_testing(
-    sponsor_address: SuiAddress,
-) -> anyhow::Result<Arc<dyn Storage>> {
+pub async fn connect_storage_for_testing(sponsor_address: SuiAddress) -> Result<Arc<dyn Storage>> {
     connect_storage_for_testing_with_config(&GasPoolStorageConfig::default(), sponsor_address).await
 }
 
@@ -120,6 +119,7 @@ pub async fn connect_storage_for_testing(
 mod tests {
     use crate::storage::{MAX_GAS_PER_QUERY, Storage, connect_storage_for_testing};
     use crate::types::GasCoin;
+    use anyhow::Result;
     use rand::random;
     use std::collections::BTreeSet;
     use std::sync::Arc;
@@ -132,10 +132,7 @@ mod tests {
         assert_eq!(storage.get_reserved_coin_count().await, reserved);
     }
 
-    async fn setup(
-        sponsor: SuiAddress,
-        init_balances: Vec<u64>,
-    ) -> anyhow::Result<Arc<dyn Storage>> {
+    async fn setup(sponsor: SuiAddress, init_balances: Vec<u64>) -> Result<Arc<dyn Storage>> {
         let storage = connect_storage_for_testing(sponsor).await?;
         let gas_coins = init_balances
             .into_iter()

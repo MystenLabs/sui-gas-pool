@@ -34,7 +34,7 @@ impl RedisStorage {
         // Test connection first (this will fail fast if URL is invalid)
         let duration = Duration::from_secs(3);
         let mut async_conn = client
-            .get_multiplexed_async_std_connection_with_timeouts(duration.clone(), duration)
+            .get_multiplexed_async_std_connection_with_timeouts(duration, duration)
             .await?;
 
         redis::cmd("PING")
