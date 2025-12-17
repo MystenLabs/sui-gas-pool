@@ -8,7 +8,7 @@ use crate::storage::Storage;
 use crate::storage::redis::script_manager::ScriptManager;
 use crate::types::{GasCoin, ReservationID};
 use chrono::Utc;
-use redis::aio::ConnectionManager;
+use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 use std::ops::Add;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -31,17 +31,12 @@ impl RedisStorage {
     ) -> anyhow::Result<Self> {
         let client = redis::Client::open(redis_url)?;
 
-        // Test connection first (this will fail fast if URL is invalid)
-        let duration = Duration::from_secs(3);
-        let mut async_conn = client
-            .get_multiplexed_async_std_connection_with_timeouts(duration, duration)
-            .await?;
+        let conn_config = ConnectionManagerConfig::new()
+            .set_factor(2)
+            .set_number_of_retries(3)
+            .set_max_delay(5000);
 
-        redis::cmd("PING")
-            .query_async::<String>(&mut async_conn)
-            .await?;
-
-        let conn_manager = ConnectionManager::new(client).await?;
+        let conn_manager = ConnectionManager::new_with_config(client, conn_config).await?;
         Ok(Self {
             conn_manager,
             sponsor_str: sponsor_address.to_string(),
