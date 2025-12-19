@@ -370,7 +370,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer, _) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address())
+            .await
+            .unwrap();
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
             sui_client,
@@ -390,7 +392,9 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let (cluster, signer, _) = start_sui_cluster(vec![10000000 * MIST_PER_SUI]).await;
         let fullnode_url = cluster.fullnode_handle.rpc_url;
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address())
+            .await
+            .unwrap();
         let target_init_balance = 12345 * MIST_PER_SUI;
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _ = GasPoolInitializer::start(
@@ -412,7 +416,9 @@ mod tests {
         let (cluster, signer, _) = start_sui_cluster(vec![1000 * MIST_PER_SUI]).await;
         let sponsor = signer.get_address();
         let fullnode_url = cluster.fullnode_handle.rpc_url.clone();
-        let storage = connect_storage_for_testing(signer.get_address()).await;
+        let storage = connect_storage_for_testing(signer.get_address())
+            .await
+            .unwrap();
         let sui_client = SuiClient::new(&fullnode_url, None).await;
         let _init_task = GasPoolInitializer::start(
             sui_client,

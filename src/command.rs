@@ -12,7 +12,7 @@ use clap::*;
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use sui_config::Config;
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Parser)]
 #[command(
@@ -56,7 +56,16 @@ impl Command {
         let storage_metrics = StorageMetrics::new(&prometheus_registry);
         let sponsor_address = signer.get_address();
         info!("Sponsor address: {:?}", sponsor_address);
-        let storage = connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await;
+
+        let storage =
+            match connect_storage(&gas_pool_config, sponsor_address, storage_metrics).await {
+                Ok(storage) => storage,
+                Err(e) => {
+                    error!("Connecting to storage failed with: {e:?}");
+                    std::process::exit(1);
+                }
+            };
+
         let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
         let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
             let task = GasPoolInitializer::start(
