@@ -84,7 +84,7 @@ pub async fn connect_storage(
     storage
         .check_health()
         .await
-        .context(anyhow!("Unable to connect to the storage layer"))?;
+        .context("Unable to connect to the storage layer")?;
     storage.init_coin_stats_at_startup().await.unwrap();
     Ok(storage)
 }
