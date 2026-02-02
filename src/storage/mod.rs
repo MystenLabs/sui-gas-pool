@@ -5,7 +5,7 @@ use crate::config::GasPoolStorageConfig;
 use crate::metrics::StorageMetrics;
 use crate::storage::redis::RedisStorage;
 use crate::types::{GasCoin, ReservationID};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use std::sync::Arc;
 use sui_types::base_types::{ObjectID, SuiAddress};
 
@@ -77,9 +77,12 @@ pub async fn connect_storage(
     metrics: Arc<StorageMetrics>,
 ) -> Result<Arc<dyn Storage>> {
     let storage: Arc<dyn Storage> = match config {
-        GasPoolStorageConfig::Redis { redis_url } => {
-            Arc::new(RedisStorage::new(redis_url, sponsor_address, metrics).await?)
-        }
+        GasPoolStorageConfig::Redis {
+            redis_url,
+            connection,
+        } => Arc::new(
+            RedisStorage::new(redis_url, sponsor_address, metrics, connection.clone()).await?,
+        ),
     };
     storage
         .check_health()

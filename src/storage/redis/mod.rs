@@ -3,6 +3,7 @@
 
 mod script_manager;
 
+use crate::config::RedisConnectionConfig;
 use crate::metrics::StorageMetrics;
 use crate::storage::Storage;
 use crate::storage::redis::script_manager::ScriptManager;
@@ -28,13 +29,32 @@ impl RedisStorage {
         redis_url: &str,
         sponsor_address: SuiAddress,
         metrics: Arc<StorageMetrics>,
+        conn_cfg: RedisConnectionConfig,
     ) -> anyhow::Result<Self> {
-        let client = redis::Client::open(redis_url)?;
+        // Build the Redis URL with TCP keepalive if configured
+        let url_with_options = if conn_cfg.tcp_keepalive_secs > 0 {
+            let separator = if redis_url.contains('?') { "&" } else { "?" };
+            format!(
+                "{}{}tcp_keepalive={}s",
+                redis_url, separator, conn_cfg.tcp_keepalive_secs
+            )
+        } else {
+            redis_url.to_string()
+        };
+
+        info!(
+            "Connecting to Redis with TCP keepalive: {}s",
+            conn_cfg.tcp_keepalive_secs
+        );
+
+        let client = redis::Client::open(url_with_options)?;
 
         let conn_config = ConnectionManagerConfig::new()
-            .set_factor(2)
-            .set_number_of_retries(3)
-            .set_max_delay(5000);
+            .set_factor(conn_cfg.retry_factor)
+            .set_number_of_retries(conn_cfg.number_of_retries)
+            .set_max_delay(conn_cfg.max_retry_delay_ms)
+            .set_connection_timeout(Duration::from_millis(conn_cfg.connection_timeout_ms))
+            .set_response_timeout(Duration::from_millis(conn_cfg.response_timeout_ms));
 
         let conn_manager = ConnectionManager::new_with_config(client, conn_config).await?;
         Ok(Self {
@@ -385,10 +405,13 @@ mod tests {
     }
 
     async fn setup_storage(redis_url: Option<&str>) -> anyhow::Result<RedisStorage> {
+        use crate::config::RedisConnectionConfig;
+
         let storage = RedisStorage::new(
             redis_url.unwrap_or_else(|| "redis://127.0.0.1:6379"),
             SuiAddress::ZERO,
             StorageMetrics::new_for_testing(),
+            RedisConnectionConfig::default(),
         )
         .await?;
         storage.flush_db().await;
