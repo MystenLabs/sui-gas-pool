@@ -17,6 +17,8 @@ pub const DEFAULT_INIT_COIN_BALANCE: u64 = MIST_PER_SUI / 10;
 // 24 hours.
 const DEFAULT_COIN_POOL_REFRESH_INTERVAL_SEC: u64 = 60 * 60 * 24;
 pub const DEFAULT_DAILY_GAS_USAGE_CAP: u64 = 1500 * MIST_PER_SUI;
+// 2 SUI.
+pub const DEFAULT_MAX_SUI_PER_REQUEST: u64 = 2 * MIST_PER_SUI;
 
 // Default Redis connection settings
 const DEFAULT_REDIS_CONNECTION_TIMEOUT_MS: u64 = 5000;
@@ -45,6 +47,9 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
+    /// Maximum SUI allowed per reservation request, in MIST.
+    /// Defaults to 2 SUI (2_000_000_000 MIST).
+    pub max_sui_per_request: u64,
     /// Enables the gas pool to work as a faucet, where the sender is the same as the sponsor.
     /// Do not set to true unless you have a specific or niche use case and you understand the
     /// risks associated with this mode.
@@ -65,6 +70,7 @@ impl Default for GasStationConfig {
             fullnode_basic_auth: None,
             coin_init_config: Some(CoinInitConfig::default()),
             daily_gas_usage_cap: DEFAULT_DAILY_GAS_USAGE_CAP,
+            max_sui_per_request: DEFAULT_MAX_SUI_PER_REQUEST,
             advanced_faucet_mode: false,
         }
     }
@@ -148,6 +154,10 @@ fn default_retry_factor() -> u64 {
 
 fn default_tcp_keepalive_secs() -> u64 {
     60
+}
+
+fn default_max_sui_per_request() -> u64 {
+    DEFAULT_MAX_SUI_PER_REQUEST
 }
 
 impl Default for RedisConnectionConfig {
