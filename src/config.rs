@@ -45,6 +45,10 @@ pub struct GasStationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coin_init_config: Option<CoinInitConfig>,
     pub daily_gas_usage_cap: u64,
+    /// Maximum SUI allowed per reservation request, in MIST.
+    /// Defaults to 2 SUI (2_000_000_000 MIST).
+    #[serde(default = "default_max_sui_per_request")]
+    pub max_sui_per_request: u64,
     /// Enables the gas pool to work as a faucet, where the sender is the same as the sponsor.
     /// Do not set to true unless you have a specific or niche use case and you understand the
     /// risks associated with this mode.
