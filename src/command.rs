@@ -39,6 +39,7 @@ impl Command {
             metrics_port,
             coin_init_config,
             daily_gas_usage_cap,
+            max_sui_per_request,
             advanced_faucet_mode,
         } = config;
 
@@ -97,6 +98,7 @@ impl Command {
             rpc_host_ip,
             rpc_port,
             rpc_metrics,
+            max_sui_per_request,
         )
         .await;
         server.handle.await.unwrap();
