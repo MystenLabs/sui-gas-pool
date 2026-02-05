@@ -56,9 +56,8 @@ impl GasPoolServer {
         host_ip: Ipv4Addr,
         rpc_port: u16,
         metrics: Arc<GasPoolRpcMetrics>,
-        max_sui_per_request: u64,
     ) -> Self {
-        let state = ServerState::new(station, metrics, max_sui_per_request);
+        let state = ServerState::new(station, metrics);
         let app = Router::new()
             .route("/", get(health))
             .route("/version", get(version))
@@ -87,21 +86,15 @@ struct ServerState {
     gas_station: Arc<GasPool>,
     secret: Arc<String>,
     metrics: Arc<GasPoolRpcMetrics>,
-    max_sui_per_request: u64,
 }
 
 impl ServerState {
-    fn new(
-        gas_station: Arc<GasPool>,
-        metrics: Arc<GasPoolRpcMetrics>,
-        max_sui_per_request: u64,
-    ) -> Self {
+    fn new(gas_station: Arc<GasPool>, metrics: Arc<GasPoolRpcMetrics>) -> Self {
         let secret = Arc::new(read_auth_env());
         Self {
             gas_station,
             secret,
             metrics,
-            max_sui_per_request,
         }
     }
 }
@@ -146,7 +139,7 @@ async fn reserve_gas(
     }
     server.metrics.num_authorized_reserve_gas_requests.inc();
     debug!("Received v1 reserve_gas request: {:?}", payload);
-    if let Err(err) = payload.check_validity(server.max_sui_per_request) {
+    if let Err(err) = payload.check_validity() {
         debug!("Invalid reserve_gas request: {:?}", err);
         return (
             StatusCode::BAD_REQUEST,
