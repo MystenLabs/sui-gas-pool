@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::AUTH_ENV_NAME;
-use crate::config::{CoinInitConfig, DEFAULT_DAILY_GAS_USAGE_CAP, DEFAULT_MAX_SUI_PER_REQUEST};
+use crate::config::{CoinInitConfig, DEFAULT_DAILY_GAS_USAGE_CAP};
 use crate::gas_pool::gas_pool_core::GasPoolContainer;
 use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::{GasPoolCoreMetrics, GasPoolRpcMetrics};
@@ -91,7 +91,6 @@ pub async fn start_rpc_server_for_testing(
         localhost.parse().unwrap(),
         get_available_port(&localhost),
         GasPoolRpcMetrics::new_for_testing(),
-        DEFAULT_MAX_SUI_PER_REQUEST,
     )
     .await;
     Ok((test_cluster, container, server))
