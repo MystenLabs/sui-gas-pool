@@ -416,8 +416,11 @@ impl GasPool {
     ) -> JoinHandle<()> {
         tokio::task::spawn(async move {
             loop {
-                let expire_results = self.gas_pool_store.expire_coins().await;
-                let unlocked_coins = expire_results.unwrap_or_else(|err| {
+                let unlocked_coins: Vec<ObjectID> = retry_with_max_attempts!(
+                    async { self.gas_pool_store.expire_coins().await },
+                    10
+                )
+                .unwrap_or_else(|err| {
                     error!("Failed to call expire_coins to the storage: {:?}", err);
                     vec![]
                 });
