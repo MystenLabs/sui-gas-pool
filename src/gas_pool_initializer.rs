@@ -200,6 +200,22 @@ impl Drop for GasPoolInitializer {
 }
 
 impl GasPoolInitializer {
+    pub async fn run_init_once(
+        sui_client: SuiClient,
+        storage: &Arc<dyn Storage>,
+        target_init_coin_balance: u64,
+        signer: &Arc<dyn TxSigner>,
+    ) {
+        Self::run_once(
+            sui_client,
+            storage,
+            RunMode::Init,
+            target_init_coin_balance,
+            signer,
+        )
+        .await;
+    }
+
     pub async fn start(
         sui_client: SuiClient,
         storage: Arc<dyn Storage>,

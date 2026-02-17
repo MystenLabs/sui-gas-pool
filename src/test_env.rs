@@ -72,6 +72,7 @@ pub async fn start_gas_station(
         DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
         advanced_faucet_mode,
+        Some(target_init_coin_balance),
     )
     .await;
     Ok((test_cluster, station))
@@ -159,6 +160,7 @@ pub async fn start_gas_station_with_cluster(
         DEFAULT_DAILY_GAS_USAGE_CAP,
         GasPoolCoreMetrics::new_for_testing(),
         advanced_faucet_mode,
+        Some(target_init_coin_balance),
     )
     .await;
     Ok((test_cluster, station))

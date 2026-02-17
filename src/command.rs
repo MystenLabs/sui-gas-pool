@@ -68,6 +68,9 @@ impl Command {
             };
 
         let sui_client = SuiClient::new(&fullnode_url, fullnode_basic_auth).await;
+        let target_init_coin_balance = coin_init_config
+            .as_ref()
+            .map(|config| config.target_init_balance);
         let _coin_init_task = if let Some(coin_init_config) = coin_init_config {
             let task = GasPoolInitializer::start(
                 sui_client.clone(),
@@ -89,6 +92,7 @@ impl Command {
             daily_gas_usage_cap,
             core_metrics,
             advanced_faucet_mode,
+            target_init_coin_balance,
         )
         .await;
 
