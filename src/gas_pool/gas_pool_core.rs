@@ -3,6 +3,7 @@
 
 use crate::metrics::GasPoolCoreMetrics;
 use crate::object_locks::ObjectLockManager;
+use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
 use crate::tx_signer::TxSigner;
@@ -45,6 +46,7 @@ pub struct GasPool {
     gas_usage_cap: Arc<GasUsageCap>,
     object_lock_manager: Arc<ObjectLockManager>,
     advanced_faucet_mode: bool,
+    target_init_coin_balance: Option<u64>,
 }
 
 impl GasPool {
@@ -55,6 +57,7 @@ impl GasPool {
         metrics: Arc<GasPoolCoreMetrics>,
         gas_usage_cap: Arc<GasUsageCap>,
         advanced_faucet_mode: bool,
+        target_init_coin_balance: Option<u64>,
     ) -> Arc<Self> {
         let object_lock_manager = Arc::new(ObjectLockManager::new(Arc::new(sui_client.clone())));
         let pool = Self {
@@ -65,6 +68,7 @@ impl GasPool {
             gas_usage_cap,
             object_lock_manager,
             advanced_faucet_mode,
+            target_init_coin_balance,
         };
         Arc::new(pool)
     }
@@ -76,6 +80,26 @@ impl GasPool {
     ) -> anyhow::Result<(SuiAddress, ReservationID, Vec<ObjectRef>)> {
         let cur_time = std::time::Instant::now();
         self.gas_usage_cap.check_usage().await?;
+        if !self.gas_pool_store.is_initialized().await? {
+            let target_init_coin_balance = self.target_init_coin_balance.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Gas pool is not initialized and coin-init-config is not configured"
+                )
+            })?;
+            info!(
+                "Gas pool is not initialized. Triggering one initialization run before reservation"
+            );
+            GasPoolInitializer::run_init_once(
+                self.sui_client.clone(),
+                &self.gas_pool_store,
+                target_init_coin_balance,
+                &self.signer,
+            )
+            .await;
+            if !self.gas_pool_store.is_initialized().await? {
+                bail!("Gas pool initialization is in progress, please retry shortly");
+            }
+        }
         let sponsor = self.signer.get_address();
         let (reservation_id, gas_coins) = self
             .gas_pool_store
@@ -517,6 +541,7 @@ impl GasPoolContainer {
         gas_usage_daily_cap: u64,
         metrics: Arc<GasPoolCoreMetrics>,
         advanced_faucet_mode: bool,
+        target_init_coin_balance: Option<u64>,
     ) -> Self {
         let inner = GasPool::new(
             signer,
@@ -525,6 +550,7 @@ impl GasPoolContainer {
             metrics,
             Arc::new(GasUsageCap::new(gas_usage_daily_cap)),
             advanced_faucet_mode,
+            target_init_coin_balance,
         )
         .await;
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
