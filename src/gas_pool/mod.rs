@@ -15,10 +15,12 @@ mod tests {
     use std::time::Duration;
     use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
     use sui_types::{
+        SUI_FRAMEWORK_PACKAGE_ID,
+        coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME},
         crypto::{Signature, get_account_key_pair},
-        gas_coin::MIST_PER_SUI,
+        gas_coin::{GAS, MIST_PER_SUI},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{TransactionData, TransactionKind},
+        transaction::{Argument, CallArg, ObjectArg, TransactionData, TransactionKind},
     };
 
     const TEST_ADVANCED_FAUCET_MODE: bool = false;
@@ -117,6 +119,86 @@ mod tests {
         println!("{:?}", result);
         assert!(result.is_err());
         assert_eq!(station.query_pool_available_coin_count().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_rejects_same_sender_as_sponsor_when_not_in_advanced_faucet_mode() {
+        let (_test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
+                .await
+                .unwrap();
+
+        let station = container.get_gas_pool_arc();
+        let (sponsor, reservation_id, gas_coins) = station
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
+            .await
+            .unwrap();
+
+        let mut ptb = ProgrammableTransactionBuilder::new();
+        ptb.input(CallArg::Object(ObjectArg::ImmOrOwnedObject(gas_coins[0])))
+            .unwrap();
+
+        let tx_kind = TransactionKind::programmable(ptb.finish());
+        let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+            tx_kind, sponsor, gas_coins, 1, 1, sponsor,
+        );
+
+        let (_, keypair) = get_account_key_pair();
+        let user_sig = Signature::new_secure(
+            &IntentMessage::new(Intent::sui_transaction(), &tx_data),
+            &keypair,
+        );
+
+        let err = station
+            .execute_transaction(reservation_id, tx_data, user_sig.into(), None)
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Sender cannot match sponsor"));
+    }
+
+    #[tokio::test]
+    async fn test_rejects_gas_coin_misuse_when_not_in_advanced_faucet_mode() {
+        let (_test_cluster, container) =
+            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
+                .await
+                .unwrap();
+
+        let station = container.get_gas_pool_arc();
+        let (sponsor, reservation_id, gas_coins) = station
+            .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
+            .await
+            .unwrap();
+
+        let (sender, keypair) = get_account_key_pair();
+        let mut ptb = ProgrammableTransactionBuilder::new();
+        let split_count = ptb.pure(1u64).unwrap();
+        ptb.programmable_move_call(
+            SUI_FRAMEWORK_PACKAGE_ID,
+            PAY_MODULE_NAME.into(),
+            PAY_SPLIT_N_FUNC_NAME.into(),
+            vec![GAS::type_tag()],
+            vec![Argument::GasCoin, split_count],
+        );
+
+        let tx_kind = TransactionKind::programmable(ptb.finish());
+        let tx_data = TransactionData::new_with_gas_coins_allow_sponsor(
+            tx_kind, sender, gas_coins, 1, 1, sponsor,
+        );
+
+        let user_sig = Signature::new_secure(
+            &IntentMessage::new(Intent::sui_transaction(), &tx_data),
+            &keypair,
+        );
+
+        let err = station
+            .execute_transaction(reservation_id, tx_data, user_sig.into(), None)
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("Gas coin can only be used to pay gas"));
     }
 
     #[tokio::test]
