@@ -4,7 +4,7 @@
 use crate::gas_pool::gas_pool_core::GasPool;
 use crate::metrics::GasPoolRpcMetrics;
 use crate::object_locks::get_imm_or_owned_non_gas_objects;
-use crate::read_auth_env;
+use crate::read_auth_envs;
 use crate::rpc::client::GasPoolRpcClient;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
@@ -85,7 +85,7 @@ impl GasPoolServer {
 #[derive(Clone)]
 struct ServerState {
     gas_station: Arc<GasPool>,
-    secret: Arc<String>,
+    secrets: Arc<Vec<String>>,
     metrics: Arc<GasPoolRpcMetrics>,
     max_sui_per_request: u64,
 }
@@ -96,10 +96,10 @@ impl ServerState {
         metrics: Arc<GasPoolRpcMetrics>,
         max_sui_per_request: u64,
     ) -> Self {
-        let secret = Arc::new(read_auth_env());
+        let secrets = Arc::new(read_auth_envs());
         Self {
             gas_station,
-            secret,
+            secrets,
             metrics,
             max_sui_per_request,
         }
@@ -121,7 +121,7 @@ async fn debug_health_check(
     Extension(server): Extension<ServerState>,
 ) -> String {
     info!("Received debug_health_check request");
-    if authorization.token() != server.secret.as_str() {
+    if !server.secrets.iter().any(|s| s == authorization.token()) {
         return "Unauthorized".to_string();
     }
     if let Err(err) = server.gas_station.debug_check_health().await {
@@ -136,7 +136,7 @@ async fn reserve_gas(
     Json(payload): Json<ReserveGasRequest>,
 ) -> impl IntoResponse {
     server.metrics.num_reserve_gas_requests.inc();
-    if authorization.token() != server.secret.as_str() {
+    if !server.secrets.iter().any(|s| s == authorization.token()) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(ReserveGasResponse::new_err(anyhow::anyhow!(
@@ -224,7 +224,7 @@ async fn execute_tx(
     Json(payload): Json<ExecuteTxRequest>,
 ) -> impl IntoResponse {
     server.metrics.num_execute_tx_requests.inc();
-    if authorization.token() != server.secret.as_ref() {
+    if !server.secrets.iter().any(|s| s == authorization.token()) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(ExecuteTxResponse::new_err(anyhow::anyhow!(

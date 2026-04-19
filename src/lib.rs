@@ -26,3 +26,10 @@ pub fn read_auth_env() -> String {
         .parse::<String>()
         .unwrap()
 }
+
+pub fn read_auth_envs() -> Vec<String> {
+    let raw = std::env::var(AUTH_ENV_NAME)
+        .ok()
+        .unwrap_or_else(|| panic!("{} environment variable must be specified", AUTH_ENV_NAME));
+    raw.split(',').map(|s| s.trim().to_string()).collect()
+}
