@@ -11,7 +11,7 @@ pub use server::GasPoolServer;
 mod tests {
     use crate::AUTH_ENV_NAME;
     use crate::rpc::server::MAX_INPUT_OBJECTS;
-    use crate::test_env::{create_test_transaction, start_rpc_server_for_testing};
+    use crate::test_env::{create_test_transaction, start_gas_station, start_rpc_server_for_testing};
     use shared_crypto::intent::{Intent, IntentMessage};
     use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions};
     use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
@@ -172,6 +172,48 @@ mod tests {
             std::env::set_var(AUTH_ENV_NAME, "b");
         }
 
+        assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_multiple_auth_secrets() {
+        use crate::config::DEFAULT_MAX_SUI_PER_REQUEST;
+        use crate::metrics::GasPoolRpcMetrics;
+        use crate::rpc::GasPoolServer;
+        use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
+
+        let (_test_cluster, _container) = start_gas_station(
+            vec![MIST_PER_SUI; 10],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await
+        .unwrap();
+
+        let localhost = localhost_for_testing();
+        // Set multiple comma-separated secrets before starting the server.
+        unsafe { std::env::set_var(AUTH_ENV_NAME, "secret_a,secret_b") };
+        let server = GasPoolServer::new(
+            _container.get_gas_pool_arc(),
+            localhost.parse().unwrap(),
+            get_available_port(&localhost),
+            GasPoolRpcMetrics::new_for_testing(),
+            DEFAULT_MAX_SUI_PER_REQUEST,
+        )
+        .await;
+
+        let client = server.get_local_client();
+
+        // Client uses first secret — should work.
+        unsafe { std::env::set_var(AUTH_ENV_NAME, "secret_a") };
+        assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_ok());
+
+        // Client uses second secret — should also work.
+        unsafe { std::env::set_var(AUTH_ENV_NAME, "secret_b") };
+        assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_ok());
+
+        // Client uses invalid secret — should fail.
+        unsafe { std::env::set_var(AUTH_ENV_NAME, "wrong") };
         assert!(client.reserve_gas(MIST_PER_SUI, 10).await.is_err());
     }
 
