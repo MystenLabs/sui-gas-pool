@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::read_auth_env;
+use crate::read_auth_envs;
 use crate::rpc::rpc_types::{
     ExecuteTxRequest, ExecuteTxResponse, ReserveGasRequest, ReserveGasResponse,
 };
@@ -60,7 +60,7 @@ impl GasPoolRpcClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            format!("Bearer {}", read_auth_env()).parse().unwrap(),
+            format!("Bearer {}", read_auth_envs()[0]).parse().unwrap(),
         );
         let response = self
             .client
@@ -91,7 +91,7 @@ impl GasPoolRpcClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            format!("Bearer {}", read_auth_env()).parse().unwrap(),
+            format!("Bearer {}", read_auth_envs()[0]).parse().unwrap(),
         );
         let response = self
             .client
@@ -134,7 +134,7 @@ impl GasPoolRpcClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
-            format!("Bearer {}", read_auth_env()).parse().unwrap(),
+            format!("Bearer {}", read_auth_envs()[0]).parse().unwrap(),
         );
         let request = ExecuteTxRequest {
             reservation_id,
