@@ -19,6 +19,12 @@ pub mod types;
 
 pub const AUTH_ENV_NAME: &str = "GAS_STATION_AUTH";
 
+pub fn read_auth_env() -> String {
+    std::env::var(AUTH_ENV_NAME)
+        .ok()
+        .unwrap_or_else(|| panic!("{} environment variable must be specified", AUTH_ENV_NAME))
+}
+
 pub fn read_auth_envs() -> Vec<String> {
     let raw = std::env::var(AUTH_ENV_NAME)
         .ok()
