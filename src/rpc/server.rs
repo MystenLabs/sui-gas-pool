@@ -121,7 +121,7 @@ async fn debug_health_check(
     Extension(server): Extension<ServerState>,
 ) -> String {
     info!("Received debug_health_check request");
-    if !server.secrets.iter().any(|s| s == authorization.token()) {
+    if !server.secrets.contains(&authorization.token().to_string()) {
         return "Unauthorized".to_string();
     }
     if let Err(err) = server.gas_station.debug_check_health().await {
@@ -136,7 +136,7 @@ async fn reserve_gas(
     Json(payload): Json<ReserveGasRequest>,
 ) -> impl IntoResponse {
     server.metrics.num_reserve_gas_requests.inc();
-    if !server.secrets.iter().any(|s| s == authorization.token()) {
+    if !server.secrets.contains(&authorization.token().to_string()) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(ReserveGasResponse::new_err(anyhow::anyhow!(
@@ -224,7 +224,7 @@ async fn execute_tx(
     Json(payload): Json<ExecuteTxRequest>,
 ) -> impl IntoResponse {
     server.metrics.num_execute_tx_requests.inc();
-    if !server.secrets.iter().any(|s| s == authorization.token()) {
+    if !server.secrets.contains(&authorization.token().to_string()) {
         return (
             StatusCode::UNAUTHORIZED,
             Json(ExecuteTxResponse::new_err(anyhow::anyhow!(
