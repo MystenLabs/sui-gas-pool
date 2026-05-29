@@ -13,7 +13,7 @@ use crate::tx_signer::{TestTxSigner, TxSigner};
 use std::sync::Arc;
 use sui_config::local_ip_utils::{get_available_port, localhost_for_testing};
 use sui_swarm_config::genesis_config::AccountConfig;
-use sui_types::base_types::{ObjectRef, SuiAddress};
+use sui_types::base_types::{FullObjectRef, ObjectRef, SuiAddress};
 use sui_types::crypto::{KeypairTraits, SuiKeyPair, get_account_key_pair};
 use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::signature::GenericSignature;
@@ -117,13 +117,14 @@ pub async fn create_test_transaction(
     let mut tx_data = test_cluster
         .test_transaction_builder_with_gas_object(user, gas_coins[0])
         .await
-        .transfer(object, user)
+        .transfer(FullObjectRef::from_fastpath_ref(object), user)
         .build();
     // TODO: Add proper sponsored transaction support to test tx builder.
     tx_data.gas_data_mut().payment = gas_coins;
     tx_data.gas_data_mut().owner = sponsor;
     let user_sig = test_cluster
         .sign_transaction(&tx_data)
+        .await
         .into_data()
         .tx_signatures_mut_for_testing()
         .pop()
@@ -175,7 +176,8 @@ pub async fn create_test_transaction_with_same_sender_as_sponsor(
     let user = sponsor.clone();
     test_cluster
         .wallet_mut()
-        .add_account(Some("sponsor".to_string()), keypair);
+        .add_account(Some("sponsor".to_string()), keypair)
+        .await;
     let object = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(user)
@@ -185,13 +187,14 @@ pub async fn create_test_transaction_with_same_sender_as_sponsor(
     let mut tx_data = test_cluster
         .test_transaction_builder_with_gas_object(user, gas_coins[0])
         .await
-        .transfer(object, user)
+        .transfer(FullObjectRef::from_fastpath_ref(object), user)
         .build();
     // TODO: Add proper sponsored transaction support to test tx builder.
     tx_data.gas_data_mut().payment = gas_coins;
     tx_data.gas_data_mut().owner = sponsor;
     let user_sig = test_cluster
         .sign_transaction(&tx_data)
+        .await
         .into_data()
         .tx_signatures_mut_for_testing()
         .pop()
@@ -205,7 +208,7 @@ pub async fn create_pay_sui_transaction_same_sender_as_sponsor(
     keypair: SuiKeyPair,
     gas_coins: Vec<ObjectRef>,
 ) -> (TransactionData, GenericSignature) {
-    test_cluster.wallet_mut().add_account(None, keypair);
+    test_cluster.wallet_mut().add_account(None, keypair).await;
 
     let recipient = get_account_key_pair();
     let tx_data = TransactionData::new_pay_sui(
@@ -220,6 +223,7 @@ pub async fn create_pay_sui_transaction_same_sender_as_sponsor(
     .unwrap();
     let user_sig = test_cluster
         .sign_transaction(&tx_data)
+        .await
         .into_data()
         .tx_signatures_mut_for_testing()
         .pop()

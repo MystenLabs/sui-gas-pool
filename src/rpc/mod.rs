@@ -11,7 +11,9 @@ pub use server::GasPoolServer;
 mod tests {
     use crate::AUTH_ENV_NAME;
     use crate::rpc::server::MAX_INPUT_OBJECTS;
-    use crate::test_env::{create_test_transaction, start_gas_station, start_rpc_server_for_testing};
+    use crate::test_env::{
+        create_test_transaction, start_gas_station, start_rpc_server_for_testing,
+    };
     use shared_crypto::intent::{Intent, IntentMessage};
     use sui_json_rpc_types::{SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions};
     use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};

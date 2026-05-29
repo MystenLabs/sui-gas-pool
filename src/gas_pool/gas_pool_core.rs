@@ -388,7 +388,7 @@ impl GasPool {
             );
         } else {
             ensure!(
-                sender == sponsor && tx_data.signers().first() == &sender,
+                sender == sponsor && tx_data.required_signers().first() == &sender,
                 "Expected that the transaction signer is the same as the sender"
             );
         }

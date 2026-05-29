@@ -17,13 +17,14 @@ use sui_sdk::SuiClientBuilder;
 use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
 use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
 use sui_types::coin::{PAY_MODULE_NAME, PAY_SPLIT_N_FUNC_NAME};
+use sui_types::coin_reservation::ParsedDigest;
 use sui_types::gas_coin::GAS;
 use sui_types::object::Owner;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
 use sui_types::transaction::{
     Argument, ObjectArg, ProgrammableTransaction, Transaction, TransactionKind,
 };
+use sui_types::transaction_driver_types::ExecuteTransactionRequestType;
 use tap::TapFallible;
 use tracing::{debug, info};
 
@@ -63,6 +64,11 @@ impl SuiClient {
             })
             .unwrap();
             for coin in page.data {
+                if ParsedDigest::is_coin_reservation_digest(&coin.digest) {
+                    debug!("Skipping synthetic address-balance coin",);
+                    continue;
+                }
+
                 if coin.balance >= balance_threshold {
                     coins.push(GasCoin {
                         object_ref: coin.object_ref(),
