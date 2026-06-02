@@ -262,7 +262,7 @@ mod tests {
     use sui_types::digests::ObjectDigest;
     use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
     use sui_types::transaction::TransactionKind;
-    use sui_types::transaction::{CallArg, ObjectArg};
+    use sui_types::transaction::{CallArg, ObjectArg, SharedObjectMutability};
 
     struct MockSuiClient {
         objects: Arc<Mutex<HashMap<ObjectID, (Owner, u64)>>>,
@@ -324,7 +324,7 @@ mod tests {
             ptb.input(CallArg::Object(ObjectArg::SharedObject {
                 id: obj,
                 initial_shared_version: SequenceNumber::new(),
-                mutable: true,
+                mutability: SharedObjectMutability::Mutable,
             }))
             .unwrap();
         }

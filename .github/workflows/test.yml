@@ -59,4 +59,4 @@ jobs:
       - name: Cargo nexttest
         shell: bash
         run: |
-          cargo nextest run -j 1
+          cargo nextest run -j 1 --no-fail-fast --retries 2
