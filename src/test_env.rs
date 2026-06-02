@@ -117,6 +117,7 @@ pub async fn create_test_transaction(
     let mut tx_data = test_cluster
         .test_transaction_builder_with_gas_object(user, gas_coins[0])
         .await
+        .with_gas_budget(MIST_PER_SUI)
         .transfer(FullObjectRef::from_fastpath_ref(object), user)
         .build();
     // TODO: Add proper sponsored transaction support to test tx builder.
@@ -187,6 +188,7 @@ pub async fn create_test_transaction_with_same_sender_as_sponsor(
     let mut tx_data = test_cluster
         .test_transaction_builder_with_gas_object(user, gas_coins[0])
         .await
+        .with_gas_budget(MIST_PER_SUI)
         .transfer(FullObjectRef::from_fastpath_ref(object), user)
         .build();
     // TODO: Add proper sponsored transaction support to test tx builder.
