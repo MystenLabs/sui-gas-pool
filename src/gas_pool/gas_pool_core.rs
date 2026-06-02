@@ -21,7 +21,8 @@ use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{
-    Argument, Command, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+    Argument, CallArg, Command, FundsWithdrawalArg, Transaction, TransactionData,
+    TransactionDataAPI, TransactionKind, WithdrawFrom,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
@@ -391,6 +392,20 @@ impl GasPool {
                 sender == sponsor && tx_data.required_signers().first() == &sender,
                 "Expected that the transaction signer is the same as the sender"
             );
+        }
+
+        if let TransactionKind::ProgrammableTransaction(pt) = tx_data.kind()
+            && pt.inputs.iter().any(|i| {
+                matches!(
+                    i,
+                    CallArg::FundsWithdrawal(FundsWithdrawalArg {
+                        withdraw_from: WithdrawFrom::Sponsor,
+                        ..
+                    })
+                )
+            })
+        {
+            bail!("Funds withdrawal from sponsor is not supported");
         }
 
         Ok(())
