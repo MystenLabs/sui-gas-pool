@@ -217,17 +217,15 @@ mod tests {
 
         let gas_price = test_cluster.get_reference_gas_price().await;
         let station = container.get_gas_pool_arc();
-        let sender = test_cluster.get_address_1();
+        let (sender, sender_gas) = test_cluster
+            .wallet
+            .get_one_gas_object()
+            .await
+            .unwrap()
+            .unwrap();
 
         {
             // (1). Convert some of the sender's gas coin into an address balance.
-            let sender_gas = test_cluster
-                .wallet
-                .get_one_gas_object_owned_by_address(sender)
-                .await
-                .unwrap()
-                .unwrap();
-
             let mut ptb = ProgrammableTransactionBuilder::new();
 
             let amount_arg = ptb.pure(MIST_PER_SUI).unwrap();
