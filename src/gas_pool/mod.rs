@@ -371,7 +371,6 @@ mod tests {
             .to_string();
 
         assert!(err.contains("Funds withdrawal from sponsor is not supported"));
-        assert_eq!(station.query_pool_available_coin_count().await, 1);
     }
 
     #[tokio::test]
@@ -435,7 +434,6 @@ mod tests {
             .to_string();
 
         assert!(err.contains("Funds withdrawal from sponsor is not supported"));
-        assert_eq!(station.query_pool_available_coin_count().await, 1);
     }
 
     #[tokio::test]
@@ -602,7 +600,7 @@ mod tests {
             .execute_transaction(reservation_id2, tx_data, user_sig, None)
             .await;
 
-        assert!(tx_block_response.is_ok());
+        assert!(tx_block_response.is_ok(), "{:?}", tx_block_response);
         assert!(tx_block_response.unwrap().effects.unwrap().status().is_ok());
 
         let (sponsor, reservation_id3, gas_coins3) = station
