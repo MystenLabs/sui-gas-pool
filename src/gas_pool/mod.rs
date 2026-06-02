@@ -210,10 +210,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_transaction_with_address_balance_reservation() {
-        let (test_cluster, container) =
-            start_gas_station(vec![MIST_PER_SUI], MIST_PER_SUI, TEST_ADVANCED_FAUCET_MODE)
-                .await
-                .unwrap();
+        let (test_cluster, container) = start_gas_station(
+            vec![MIST_PER_SUI; 5],
+            MIST_PER_SUI,
+            TEST_ADVANCED_FAUCET_MODE,
+        )
+        .await
+        .unwrap();
 
         let gas_price = test_cluster.get_reference_gas_price().await;
         let station = container.get_gas_pool_arc();
@@ -253,7 +256,7 @@ mod tests {
         {
             // (2). Make use of the address balance in a new transaction with a new reservation.
             let (sponsor, reservation_id, gas_coins) = station
-                .reserve_gas(MIST_PER_SUI, Duration::from_secs(10))
+                .reserve_gas(MIST_PER_SUI * 5, Duration::from_secs(10))
                 .await
                 .unwrap();
 
@@ -559,7 +562,7 @@ mod tests {
         // needs to be the sender.
 
         // Create a test cluster with advanced faucet mode enabled.
-        let (mut test_cluster, signer, keypair) = start_sui_cluster(vec![MIST_PER_SUI; 10]).await;
+        let (mut test_cluster, signer, keypair) = start_sui_cluster(vec![MIST_PER_SUI; 20]).await;
         let (_, container) = start_gas_station_with_cluster(
             &mut test_cluster,
             signer,
@@ -585,7 +588,7 @@ mod tests {
         );
 
         let (sponsor, reservation_id2, gas_coins2) = station
-            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 5, Duration::from_secs(10))
             .await
             .unwrap();
         let (tx_data, user_sig) = create_test_transaction_with_same_sender_as_sponsor(
@@ -604,7 +607,7 @@ mod tests {
         assert!(tx_block_response.unwrap().effects.unwrap().status().is_ok());
 
         let (sponsor, reservation_id3, gas_coins3) = station
-            .reserve_gas(MIST_PER_SUI * 3, Duration::from_secs(10))
+            .reserve_gas(MIST_PER_SUI * 5, Duration::from_secs(10))
             .await
             .unwrap();
         let (tx_data, user_sig) = create_pay_sui_transaction_same_sender_as_sponsor(
