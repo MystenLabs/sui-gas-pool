@@ -1,4 +1,4 @@
-FROM rust:1.90-bullseye AS chef
+FROM rust:1.90-bookworm AS chef
 WORKDIR sui
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
@@ -13,7 +13,7 @@ COPY src ./src
 RUN cargo build --release
 
 # Production Image
-FROM debian:bullseye-slim AS runtime
+FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y libjemalloc-dev ca-certificates
 COPY --from=builder /target/release/sui-gas-station /usr/local/bin
 
@@ -21,4 +21,3 @@ ARG BUILD_DATE
 ARG GIT_REVISION
 LABEL build-date=$BUILD_DATE
 LABEL git-revision=$GIT_REVISION
-
