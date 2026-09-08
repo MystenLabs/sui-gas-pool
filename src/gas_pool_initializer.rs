@@ -465,7 +465,7 @@ mod tests {
             )
             .build();
         let response = cluster.sign_and_execute_transaction(&tx_data).await;
-        tracing::debug!("New transfer effects: {:?}", response.effects.unwrap());
+        tracing::debug!("New transfer effects: {:?}", response.effects);
 
         // Give it some time for the task to pick up the new coin and split it.
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;

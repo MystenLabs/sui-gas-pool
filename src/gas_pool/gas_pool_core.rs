@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::metrics::GasPoolCoreMetrics;
 use crate::object_locks::ObjectLockManager;
-use crate::gas_pool_initializer::GasPoolInitializer;
 use crate::storage::Storage;
 use crate::sui_client::SuiClient;
 use crate::tx_signer::TxSigner;
 use crate::types::{GasCoin, ReservationID};
 use crate::{retry_forever, retry_with_max_attempts};
-use anyhow::bail;
+use anyhow::{bail, ensure};
 use std::sync::Arc;
 use std::time::Duration;
 use sui_json_rpc_types::{
@@ -21,7 +21,8 @@ use sui_types::gas_coin::MIST_PER_SUI;
 use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use sui_types::signature::GenericSignature;
 use sui_types::transaction::{
-    Argument, Command, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+    Argument, CallArg, Command, FundsWithdrawalArg, Transaction, TransactionData,
+    TransactionDataAPI, TransactionKind, WithdrawFrom,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
@@ -379,24 +380,32 @@ impl GasPool {
 
         let sender = tx_data.sender();
         let sponsor = tx_data.gas_data().owner;
-        // ensure that the sponsor and sender are the same if `advanced_faucet_mode` is set to true
-        // and that the signer is the same as the sender.
-        // SAFETY: as signers is a NonEmpty type, calling first() is fine and should always
-        // retrieve the first element.
-        if self.advanced_faucet_mode && (sponsor != sender || *tx_data.signers().first() != sender)
-        {
-            bail!("Expected that the transaction signer is the same as the sender");
+
+        if !self.advanced_faucet_mode {
+            ensure!(sender != sponsor, "Sender cannot match sponsor");
+            ensure!(
+                !all_args.contains(&&Argument::GasCoin),
+                "Gas coin can only be used to pay gas"
+            );
+        } else {
+            ensure!(
+                sender == sponsor && tx_data.required_signers().first() == &sender,
+                "Expected that the transaction signer is the same as the sender"
+            );
         }
 
-        // When advanced-faucet-mode is enabled, we allow the use of gas coins in the transaction
-        if !self.advanced_faucet_mode {
-            let uses_gas = all_args
-                .into_iter()
-                .any(|arg| matches!(*arg, Argument::GasCoin));
-
-            if uses_gas {
-                bail!("Gas coin can only be used to pay gas")
-            };
+        if let TransactionKind::ProgrammableTransaction(pt) = tx_data.kind()
+            && pt.inputs.iter().any(|i| {
+                matches!(
+                    i,
+                    CallArg::FundsWithdrawal(FundsWithdrawalArg {
+                        withdraw_from: WithdrawFrom::Sponsor,
+                        ..
+                    })
+                )
+            })
+        {
+            bail!("Funds withdrawal from sponsor is not supported");
         }
 
         Ok(())
